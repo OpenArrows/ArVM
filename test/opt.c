@@ -125,8 +125,11 @@ void test_opt_inline_call(void) {
       make_binary(&arena, ADD, make_ref(&arena, ARG), make_const(&arena, 1)))};
   arvm_optimize_fn(&func, &arena);
 
-  arvm_expr_t *exp =
-      make_binary(&arena, ADD, make_ref(&arena, ARG), make_const(&arena, 2));
+  arvm_expr_t *exp = make_binary(
+      &arena, AND,
+      make_binary(&arena, ADD, make_ref(&arena, ARG), make_const(&arena, 2)),
+      make_in_interval(&arena, make_ref(&arena, ARG), 0,
+                       ARVM_POSITIVE_INFINITY));
 
   TEST_ASSERT(is_identical(func.value, exp));
 }
@@ -142,6 +145,6 @@ int main(void) {
   RUN_TEST(test_opt_interval_and_interval);
   RUN_TEST(test_opt_any_plus_const_plus_const);
   RUN_TEST(test_opt_any_plus_const_in_interval);
-  // RUN_TEST(test_opt_inline_call);
+  RUN_TEST(test_opt_inline_call);
   return UNITY_END();
 }

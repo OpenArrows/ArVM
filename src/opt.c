@@ -164,14 +164,15 @@ void arvm_optimize(arvm_expr_t *expr, void *ctx_) {
       cur = cur->parent;
     }
     arvm_func_t *func = expr->call.target;
-    arvm_expr_t *arg = arena_alloc(ctx->arena, sizeof(arvm_expr_t));
-    clone_expr(ctx->arena, expr->call.arg, arg);
+    arvm_expr_t arg;
+    clone_expr(ctx->arena, expr->call.arg, &arg);
+    arvm_expr_t arg_ref = (arvm_expr_t){REF, .ref = {ARG}};
     arvm_expr_t arg_gt_zero = (arvm_expr_t){
-        IN_INTERVAL, .in_interval = {arg, 1, ARVM_POSITIVE_INFINITY}};
+        IN_INTERVAL, .in_interval = {&arg_ref, 1, ARVM_POSITIVE_INFINITY}};
     arvm_expr_t new_expr = {
         BINARY, .binary = {AND, expr->call.target->value, &arg_gt_zero}};
     clone_expr(ctx->arena, &new_expr, expr);
-    visit(expr, arvm_optimize, &(arvm_opt_ctx_t){ctx, ctx->arena, func, arg});
+    visit(expr, arvm_optimize, &(arvm_opt_ctx_t){ctx, ctx->arena, func, &arg});
     break;
   }
   default:
