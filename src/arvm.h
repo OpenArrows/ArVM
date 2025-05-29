@@ -64,6 +64,8 @@ struct expression {
   };
 };
 
+// Represents an unary function f(t), t > 0, that returns a boolean value
+// (active/inactive state) for each tick
 struct function {
   arvm_expr_t *value;
 };

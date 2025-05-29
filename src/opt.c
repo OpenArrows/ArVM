@@ -166,12 +166,18 @@ void arvm_optimize(arvm_expr_t *expr, void *ctx_) {
     arvm_func_t *func = expr->call.target;
     arvm_expr_t arg;
     clone_expr(ctx->arena, expr->call.arg, &arg);
-    arvm_expr_t arg_ref = (arvm_expr_t){REF, .ref = {ARG}};
+
+    // Besides just inlining the function, we also need to check that the
+    // argument value is > 0, because functions are only defined for positive
+    // arguments
+    arvm_expr_t arg_ref = (arvm_expr_t){
+        REF, .ref = {ARG}}; // arg ref gets replaced with the actual argument
     arvm_expr_t arg_gt_zero = (arvm_expr_t){
         IN_INTERVAL, .in_interval = {&arg_ref, 1, ARVM_POSITIVE_INFINITY}};
     arvm_expr_t new_expr = {
         BINARY, .binary = {AND, expr->call.target->value, &arg_gt_zero}};
     clone_expr(ctx->arena, &new_expr, expr);
+
     visit(expr, arvm_optimize, &(arvm_opt_ctx_t){ctx, ctx->arena, func, &arg});
     break;
   }
