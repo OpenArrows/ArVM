@@ -60,7 +60,7 @@ void arvm_optimize(arvm_expr_t *expr, void *ctx_) {
       if (lhs->kind == BINARY) {
         if (lhs->binary.op == AND) {
           if (is_identical(lhs->binary.rhs, rhs)) {
-            clone_expr(ctx->arena, rhs, expr);
+            clone_expr(ctx->arena, rhs, expr); // x & y | x => x
           }
         }
       }
