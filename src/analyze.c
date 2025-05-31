@@ -24,3 +24,15 @@ bool is_identical(arvm_expr_t *a, arvm_expr_t *b) {
     return true;
   }
 }
+
+bool is_symmetric(arvm_binop_t op) {
+  switch (op) {
+  case OR:
+  case AND:
+  case XOR:
+  case ADD:
+    return true;
+  case MOD:
+    return false;
+  }
+}
