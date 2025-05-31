@@ -11,7 +11,9 @@ typedef enum pattern_kind {
   EXPR_CONSTVAL
 } pattern_kind_t;
 
-typedef struct pattern {
+typedef struct pattern pattern_t;
+
+struct pattern {
   pattern_kind_t kind;
   arvm_expr_t **capture;
   union {
@@ -30,7 +32,7 @@ typedef struct pattern {
       arvm_val_t value;
     } constval;
   };
-} pattern_t;
+};
 
 #define ANY(...)                                                               \
   &(pattern_t) { EXPR_ANY, ##__VA_ARGS__ }
