@@ -7,7 +7,7 @@ project(ArVM
 
 add_subdirectory(src)
 
-set(UNITY_PATH "${CMAKE_CURRENT_SOURCE_DIR}/third_party/unity")
+set(UNITY_PATH "${CMAKE_CURRENT_SOURCE_DIR}/third_party/Unity")
 add_subdirectory(${UNITY_PATH})
 
 include(CTest)
