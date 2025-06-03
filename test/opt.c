@@ -37,9 +37,20 @@ void test_fold_nary() {
   TEST_ASSERT(is_identical(func.value, exp));
 }
 
+void test_eval_nary() {
+  arvm_func_t func = {make_nary(&arena, ADD, 3, make_const(&arena, 1),
+                                make_const(&arena, 2), make_const(&arena, 3))};
+  arvm_optimize_fn(&func, &arena);
+
+  arvm_expr_t *exp = make_const(&arena, 6);
+
+  TEST_ASSERT(is_identical(func.value, exp));
+}
+
 int main(void) {
   UNITY_BEGIN();
   RUN_TEST(test_unwrap_nary);
   RUN_TEST(test_fold_nary);
+  RUN_TEST(test_eval_nary);
   return UNITY_END();
 }

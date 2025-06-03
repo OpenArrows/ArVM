@@ -62,10 +62,14 @@ void arvm_optimize(arvm_expr_t *expr, void *ctx_) {
   }
 
   {
-    // TODO: Compile-time n-ary evaluation
+    // Compile-time n-ary evaluation
+    if (matches(expr, NARY_EACH(ANYVAL(), CONST(ANYVAL())))) {
+      arvm_val_t value = eval_nary(&expr->nary, (arvm_ctx_t){0});
+      arvm_expr_t const_ = {CONST, .const_ = {value}};
+      clone_expr(ctx->arena, &const_, expr);
+      return;
+    }
   }
-
-  
 
   /*switch (expr->kind) {
   case BINARY: {
