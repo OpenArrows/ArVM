@@ -2,16 +2,16 @@
 #include <stdbool.h>
 #include <stddef.h>
 
-typedef enum pattern_kind {
-  EXPR_ANY,
-  EXPR_SLOT,
-  EXPR_NARY,
-  EXPR_IN_INTERVAL,
-  EXPR_ARG_REF,
-  EXPR_CALL,
-  EXPR_CONST,
-  EXPR_CONSTVAL
-} pattern_kind_t;
+typedef enum val_pattern_kind { VAL_ANY, VAL_SPECIFIC } val_pattern_kind_t;
+
+typedef struct val_pattern {
+  val_pattern_kind_t kind;
+  union {
+    struct {
+      arvm_val_t value;
+    } specific;
+  };
+} val_pattern_t;
 
 typedef struct pattern pattern_t;
 
@@ -19,6 +19,16 @@ typedef struct pattern_list {
   size_t size;
   pattern_t *patterns;
 } patternlist_t;
+
+typedef enum pattern_kind {
+  EXPR_ANY,
+  EXPR_SLOT,
+  EXPR_NARY,
+  EXPR_IN_INTERVAL,
+  EXPR_ARG_REF,
+  EXPR_CALL,
+  EXPR_CONST
+} pattern_kind_t;
 
 struct pattern {
   pattern_kind_t kind;
@@ -30,7 +40,7 @@ struct pattern {
       arvm_expr_t **matches;
     } slot;
     struct {
-      arvm_nary_op_t op;
+      val_pattern_t op;
       patternlist_t args;
     } nary;
     struct {
@@ -40,8 +50,8 @@ struct pattern {
       pattern_t *arg;
     } call;
     struct {
-      arvm_val_t value;
-    } constval;
+      val_pattern_t value;
+    } const_;
   };
 };
 
@@ -56,6 +66,14 @@ struct pattern {
   &(pattern_t) { EXPR_ANY, &capture }
 
 #define ANY() ANY_AS(*NULL)
+
+#define ANYVAL()                                                               \
+  (val_pattern_t) { VAL_ANY }
+
+#define VAL(val)                                                               \
+  (val_pattern_t) {                                                            \
+    VAL_SPECIFIC, .specific = { val }                                          \
+  }
 
 // Slots are the same as 'any' pattern, except that the expression in each slot
 // must be identical to other matched expressions
@@ -92,17 +110,12 @@ struct pattern {
 
 #define CALL(arg) CALL_AS(*NULL, arg)
 
-#define CONST_ANY_AS(capture)                                                  \
-  &(pattern_t) { EXPR_CONST, &capture }
-#define CONST_VAL_AS(capture, value)                                           \
+#define CONST_AS(capture, value)                                               \
   &(pattern_t) {                                                               \
-    EXPR_CONSTVAL, &capture, .constval = { value }                             \
+    EXPR_CONST, &capture, .const = { value }                                   \
   }
-
-#define GET_CONST_AS_MACRO(_1, _2, macro, ...) macro
-#define CONST_AS(...)                                                          \
-  GET_CONST_AS_MACRO(, ##__VA_ARGS__, CONST_VAL, CONST_ANY)(__VA_ARGS__)
-
 #define CONST(...) CONST_AS(*NULL, ##__VA_ARGS__)
+
+bool val_matches(arvm_val_t val, val_pattern_t pattern);
 
 bool matches(arvm_expr_t *expr, pattern_t *pattern);

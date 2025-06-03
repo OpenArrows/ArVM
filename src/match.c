@@ -3,6 +3,15 @@
 #include <stddef.h>
 #include <stdlib.h>
 
+bool val_matches(arvm_val_t val, val_pattern_t pattern) {
+  switch (pattern.kind) {
+  case VAL_ANY:
+    return true;
+  case VAL_SPECIFIC:
+    return val == pattern.specific.value;
+  }
+}
+
 static bool try_match(arvm_expr_t *expr, pattern_t *pattern);
 
 static bool cmp_pattern(arvm_expr_t *expr, pattern_t *pattern) {
@@ -11,7 +20,7 @@ static bool cmp_pattern(arvm_expr_t *expr, pattern_t *pattern) {
   case EXPR_SLOT:
     return true;
   case EXPR_NARY: {
-    if (expr->kind != NARY || expr->nary.op != pattern->nary.op)
+    if (expr->kind != NARY || !val_matches(expr->nary.op, pattern->nary.op))
       return false;
 
     // TODO: set representatives algorithm
@@ -36,9 +45,8 @@ static bool cmp_pattern(arvm_expr_t *expr, pattern_t *pattern) {
   case EXPR_CALL:
     return expr->kind == CALL && try_match(expr->call.arg, pattern->call.arg);
   case EXPR_CONST:
-    return expr->kind == CONST;
-  case EXPR_CONSTVAL:
-    return expr->kind == CONST && expr->const_.value == pattern->constval.value;
+    return expr->kind == CONST &&
+           val_matches(expr->const_.value, pattern->const_.value);
   }
 }
 
