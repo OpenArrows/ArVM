@@ -16,6 +16,7 @@ bool val_matches(arvm_val_t val, val_pattern_t pattern) {
 static void capture(pattern_t *pattern, arvm_expr_t *expr) {
   if (pattern->capture)
     *pattern->capture = expr;
+  // TODO: slots
 }
 
 static bool try_match(arvm_expr_t *expr, pattern_t *pattern);
@@ -92,6 +93,18 @@ static bool cmp_pattern(arvm_expr_t *expr, pattern_t *pattern) {
 
     return result;
   }
+  case EXPR_NARY_EACH:
+    if (expr->kind != NARY ||
+        !val_matches(expr->nary.op, pattern->nary_each.op))
+      return false;
+
+    for (int i = 0; i < expr->nary.args.size; i++) {
+      arvm_expr_t *arg_expr = expr->nary.args.exprs[i];
+      if (!try_match(arg_expr, pattern->nary_each.arg))
+        return false;
+    }
+
+    return true;
   case EXPR_IN_INTERVAL:
     return expr->kind == IN_INTERVAL &&
            try_match(expr->in_interval.value, pattern->in_interval.value);
