@@ -8,4 +8,4 @@
 
 Written in pure C btw. :cool:
 
-ArVM is a part of [OpenArrows project](https://github.com/OpenArrows).
+ArVM is a part of the [OpenArrows project](https://github.com/OpenArrows).
