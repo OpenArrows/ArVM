@@ -72,6 +72,32 @@ void arvm_optimize(arvm_expr_t *expr, void *ctx_) {
       }
     }
   } // General n-ary optimizations
+
+  { // Boolean laws
+    {
+      // Annulment law
+      if (matches(expr, NARY(VAL(OR), CONST(VAL(0))))) {
+        for (int i = 0; i < expr->nary.args.size;) {
+          if (matches(expr->nary.args.exprs[i], CONST(VAL(0)))) {
+            expr->nary.args.size--;
+            memcpy(&expr->nary.args.exprs[i], &expr->nary.args.exprs[i + 1],
+                   sizeof(arvm_expr_t *) * (expr->nary.args.size - i));
+          } else
+            i++;
+        }
+      }
+      if (matches(expr, NARY(VAL(AND), CONST(VAL(1))))) {
+        for (int i = 0; i < expr->nary.args.size;) {
+          if (matches(expr->nary.args.exprs[i], CONST(VAL(1)))) {
+            expr->nary.args.size--;
+            memcpy(&expr->nary.args.exprs[i], &expr->nary.args.exprs[i + 1],
+                   sizeof(arvm_expr_t *) * (expr->nary.args.size - i));
+          } else
+            i++;
+        }
+      }
+    }
+  } // Boolean laws
 }
 
 void arvm_optimize_fn(arvm_func_t *func, arena_t *arena) {
