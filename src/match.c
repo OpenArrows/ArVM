@@ -3,6 +3,8 @@
 #include <stddef.h>
 #include <stdlib.h>
 
+#define NARY_ARG_MATCH_BLOCK_SIZE 4
+
 bool val_matches(arvm_val_t val, val_pattern_t pattern) {
   switch (pattern.kind) {
   case VAL_ANY:
@@ -19,16 +21,19 @@ static bool cmp_pattern(arvm_expr_t *expr, pattern_t *pattern) {
   case EXPR_ANY:
   case EXPR_SLOT:
     return true;
-  case EXPR_NARY: {
+  case EXPR_NARY_FIXED:
+    if (expr->kind != NARY || expr->nary.args.size != pattern->nary.args.size)
+      return false;
+  case EXPR_NARY:
     if (expr->kind != NARY || !val_matches(expr->nary.op, pattern->nary.op))
       return false;
 
     // TODO: set representatives algorithm
     for (int i = 0; i < pattern->nary.args.size; i++) {
-      pattern_t *arg_pattern = &pattern->nary.args.patterns[i];
+      pattern_t *arg_pattern = pattern->nary.args.patterns[i];
       bool matched = false;
       for (int j = 0; j < expr->nary.args.size; j++) {
-        arvm_expr_t *arg_expr = &expr->nary.args.exprs[j];
+        arvm_expr_t *arg_expr = expr->nary.args.exprs[j];
         if (try_match(arg_expr, arg_pattern))
           matched = true;
       }
@@ -36,7 +41,6 @@ static bool cmp_pattern(arvm_expr_t *expr, pattern_t *pattern) {
         return false;
     }
     return true;
-  }
   case EXPR_IN_INTERVAL:
     return expr->kind == IN_INTERVAL &&
            try_match(expr->in_interval.value, pattern->in_interval.value);
@@ -54,7 +58,7 @@ static bool try_match(arvm_expr_t *expr, pattern_t *pattern) {
   if (expr == NULL)
     return false;
   bool result = cmp_pattern(expr, pattern);
-  if (result)
+  if (result && pattern->capture)
     *pattern->capture = expr;
   return result;
 }
@@ -68,7 +72,7 @@ static int find_slots(pattern_t *pattern, pattern_t **slots) {
   case EXPR_NARY: {
     int sum = 0;
     for (int i = 0; i < pattern->nary.args.size; i++) {
-      pattern_t *arg_pattern = &pattern->nary.args.patterns[i];
+      pattern_t *arg_pattern = pattern->nary.args.patterns[i];
       sum += find_slots(arg_pattern, slots++);
     }
     return sum;

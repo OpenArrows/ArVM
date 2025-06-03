@@ -49,6 +49,12 @@ arvm_expr_t *make_const(arena_t *arena, arvm_val_t value) {
   return expr;
 }
 
+arvm_expr_t *make_none(arena_t *arena) {
+  arvm_expr_t *expr = arena_alloc(arena, sizeof(arvm_expr_t));
+  expr->kind = NONE;
+  return expr;
+}
+
 static arvm_expr_t *create_or_reuse_expr(arena_t *arena,
                                          arvm_expr_t **reusables,
                                          size_t resuable_count, size_t idx,
@@ -56,7 +62,7 @@ static arvm_expr_t *create_or_reuse_expr(arena_t *arena,
   arvm_expr_t *expr = idx < resuable_count
                           ? reusables[idx]
                           : arena_alloc(arena, sizeof(arvm_expr_t));
-  expr->kind = NONE;
+  expr->kind = NONE; // TODO: reuse reusables' children?
   clone_expr(arena, src, expr);
   return expr;
 }
