@@ -11,27 +11,28 @@ void setUp(void) {}
 void tearDown(void) { arena_free(&arena); }
 
 void test_unwrap_nary() {
-  arvm_func_t func = {make_nary(&arena, OR, 1, make_arg_ref(&arena))};
+  arvm_func_t func = {make_nary(&arena, OR, 1, make_expr(&arena, UNKNOWN))};
   arvm_optimize_fn(&func, &arena);
 
-  arvm_expr_t *exp = make_arg_ref(&arena);
+  arvm_expr_t *exp = make_expr(&arena, UNKNOWN);
 
   TEST_ASSERT(is_identical(func.value, exp));
 }
 
 void test_fold_nary() {
-  arvm_func_t func = {
-      make_nary(&arena, ADD, 3,
-                make_nary(&arena, ADD, 2, make_none(&arena), make_none(&arena)),
-                make_const(&arena, 2),
-                make_nary(&arena, ADD, 3, make_none(&arena), make_none(&arena),
-                          make_none(&arena)))};
+  arvm_func_t func = {make_nary(
+      &arena, ADD, 3,
+      make_nary(&arena, ADD, 2, make_expr(&arena, UNKNOWN),
+                make_expr(&arena, UNKNOWN)),
+      make_expr(&arena, UNKNOWN),
+      make_nary(&arena, ADD, 3, make_expr(&arena, UNKNOWN),
+                make_expr(&arena, UNKNOWN), make_expr(&arena, UNKNOWN)))};
   arvm_optimize_fn(&func, &arena);
 
-  arvm_expr_t *exp =
-      make_nary(&arena, ADD, 6, make_none(&arena), make_none(&arena),
-                make_const(&arena, 2), make_none(&arena), make_none(&arena),
-                make_none(&arena));
+  arvm_expr_t *exp = make_nary(
+      &arena, ADD, 6, make_expr(&arena, UNKNOWN), make_expr(&arena, UNKNOWN),
+      make_expr(&arena, UNKNOWN), make_expr(&arena, UNKNOWN),
+      make_expr(&arena, UNKNOWN), make_expr(&arena, UNKNOWN));
 
   TEST_ASSERT(is_identical(func.value, exp));
 }
