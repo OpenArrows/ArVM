@@ -10,9 +10,12 @@ void test_is_identical(void) {
   arvm_expr_t const_a = {CONST, .const_ = {0}};
   arvm_expr_t const_b = {CONST, .const_ = {1}};
   arvm_expr_t const_c = {CONST, .const_ = {1}};
-  arvm_expr_t expr1 = {BINARY, .binary = {ADD, &const_a, &const_b}};
-  arvm_expr_t expr2 = {BINARY, .binary = {ADD, &const_a, &const_c}};
-  arvm_expr_t expr3 = {BINARY, .binary = {ADD, &const_b, &const_c}};
+  arvm_expr_t expr1 = {
+      NARY, .nary = {ADD, {2, (arvm_expr_t *[]){&const_a, &const_b}}}};
+  arvm_expr_t expr2 = {
+      NARY, .nary = {ADD, {2, (arvm_expr_t *[]){&const_a, &const_c}}}};
+  arvm_expr_t expr3 = {
+      NARY, .nary = {ADD, {2, (arvm_expr_t *[]){&const_b, &const_c}}}};
   TEST_ASSERT(is_identical(&expr1, &expr2));
   TEST_ASSERT_FALSE(is_identical(&expr2, &expr3));
 }

@@ -1,79 +1,40 @@
 #include "match.h"
 #include "analyze.h"
 #include <stddef.h>
+#include <stdlib.h>
+
+static bool try_match(arvm_expr_t *expr, pattern_t *pattern);
 
 static bool cmp_pattern(arvm_expr_t *expr, pattern_t *pattern) {
   switch (pattern->kind) {
   case EXPR_ANY:
+  case EXPR_SLOT:
     return true;
-  case EXPR_BINARY: {
-    if (expr->kind != BINARY || expr->binary.op != pattern->binary.op)
+  case EXPR_NARY: {
+    if (expr->kind != NARY || expr->nary.op != pattern->nary.op)
       return false;
 
-    arvm_expr_t *lhs, **lhs_src, *rhs, **rhs_src;
-
-    // If the binary operation is symmetric, we should check both sides
-    // recursively
-    if (is_symmetric(pattern->binary.op)) {
-      pattern_t lhs_pattern;
-      lhs_pattern = *pattern->binary.lhs;
-      lhs_pattern.capture = &lhs;
-
-      pattern_t rhs_pattern;
-      rhs_pattern = *pattern->binary.rhs;
-      rhs_pattern.capture = &rhs;
-
-      arvm_expr_t *subexpr;
-      if (matches(expr->binary.lhs,
-                  BINARY(pattern->binary.op, &lhs_pattern, ANY(), &subexpr))) {
-        lhs_src = &subexpr->binary.lhs;
-      } else if (matches(expr->binary.lhs, BINARY(pattern->binary.op, ANY(),
-                                                  &rhs_pattern, &subexpr))) {
-        rhs_src = &subexpr->binary.lhs;
+    // TODO: set representatives algorithm
+    for (int i = 0; i < pattern->nary.args.size; i++) {
+      pattern_t *arg_pattern = &pattern->nary.args.patterns[i];
+      bool matched = false;
+      for (int j = 0; j < expr->nary.args.size; j++) {
+        arvm_expr_t *arg_expr = &expr->nary.args.exprs[j];
+        if (try_match(arg_expr, arg_pattern))
+          matched = true;
       }
-      if (matches(expr->binary.rhs,
-                  BINARY(pattern->binary.op, &lhs_pattern, ANY(), &subexpr))) {
-        lhs_src = &subexpr->binary.rhs;
-      } else if (matches(expr->binary.rhs, BINARY(pattern->binary.op, ANY(),
-                                                  &rhs_pattern, &subexpr))) {
-        rhs_src = &subexpr->binary.rhs;
-      }
-      if (!rhs || !lhs) {
-        lhs = expr->binary.lhs;
-        lhs_src = NULL;
-        rhs = expr->binary.rhs;
-        rhs_src = NULL;
-      }
-      if (matches(lhs, pattern->binary.rhs) &&
-          matches(rhs, pattern->binary.lhs)) {
-        arvm_expr_t *tmp = lhs, **tmp_src = lhs_src;
-        lhs = rhs;
-        lhs_src = rhs_src;
-        rhs = tmp;
-        rhs = tmp_src;
-      }
-      bool result = matches(lhs, pattern->binary.lhs) &&
-                    matches(rhs, pattern->binary.rhs);
-      if (result) {
-        if (lhs_src)
-          *lhs_src = expr->binary.lhs;
-        expr->binary.lhs = lhs;
-        if (rhs_src)
-          *rhs_src = expr->binary.lhs;
-        expr->binary.lhs = rhs;
-      }
-      return result;
-    } else
-      return matches(expr->binary.lhs, pattern->binary.lhs) &&
-             matches(expr->binary.rhs, pattern->binary.rhs);
+      if (!matched)
+        return false;
+    }
+    return true;
   }
   case EXPR_IN_INTERVAL:
     return expr->kind == IN_INTERVAL &&
-           matches(expr->in_interval.value, pattern->in_interval.value);
+           try_match(expr->in_interval.value, pattern->in_interval.value);
   case EXPR_ARG_REF:
-    return expr->kind == REF && expr->ref.ref == ARG;
+    return expr->kind == ARG_REF;
   case EXPR_CALL:
-    return expr->kind == CALL && matches(expr->call.arg, pattern->call.arg);
+    return expr->kind == CALL && try_match(expr->call.arg, pattern->call.arg);
   case EXPR_CONST:
     return expr->kind == CONST;
   case EXPR_CONSTVAL:
@@ -81,11 +42,84 @@ static bool cmp_pattern(arvm_expr_t *expr, pattern_t *pattern) {
   }
 }
 
-bool matches(arvm_expr_t *expr, pattern_t *pattern) {
+static bool try_match(arvm_expr_t *expr, pattern_t *pattern) {
   if (expr == NULL)
     return false;
   bool result = cmp_pattern(expr, pattern);
   if (result)
     *pattern->capture = expr;
+  return result;
+}
+
+static int find_slots(pattern_t *pattern, pattern_t **slots) {
+  switch (pattern->kind) {
+  case EXPR_SLOT:
+    if (slots != NULL)
+      *slots = pattern;
+    return 1;
+  case EXPR_NARY: {
+    int sum = 0;
+    for (int i = 0; i < pattern->nary.args.size; i++) {
+      pattern_t *arg_pattern = &pattern->nary.args.patterns[i];
+      sum += find_slots(arg_pattern, slots++);
+    }
+    return sum;
+  }
+  case EXPR_IN_INTERVAL:
+    return find_slots(pattern->in_interval.value, slots);
+  case EXPR_CALL:
+    return find_slots(pattern->call.arg, slots);
+  default:
+    return 0;
+  }
+}
+
+bool matches(arvm_expr_t *expr, pattern_t *pattern) {
+  bool result = try_match(expr, pattern);
+  if (!result)
+    return false;
+
+  int slot_count = find_slots(pattern, NULL);
+  if (slot_count == 0)
+    return result;
+
+  pattern_t *slots[slot_count];
+  find_slots(pattern, slots);
+
+  for (int i = 0; i < slot_count; i++) {
+    if (slots[i]->slot.match_count == 0)
+      return false;
+  }
+
+  int indices[slot_count];
+  for (;;) {
+    arvm_expr_t *expr = *slots[0]->capture = slots[0]->slot.matches[indices[0]];
+    for (int i = 1; i < slot_count; i++) {
+      if (!is_identical(expr, *slots[i]->capture =
+                                  slots[i]->slot.matches[indices[i]]))
+        goto skip;
+    }
+
+  skip:
+    for (int i = 0; i < slot_count; i++) {
+      indices[i]++;
+      if (indices[i] > slots[i]->slot.match_count) {
+        if (i == slot_count - 1)
+          goto fail;
+        indices[i] = 0;
+      } else
+        break;
+    }
+  }
+
+fail:
+  result = false;
+
+end:
+  for (int i = 0; i < slot_count; i++) {
+    free(slots[i]->slot.matches);
+    slots[i]->slot.matches = NULL;
+  }
+
   return result;
 }

@@ -3,19 +3,10 @@
 #include "builder.h"
 #include "eval.h"
 #include "imath.h"
+#include "match.h"
 #include "visit.h"
 #include <stdbool.h>
 #include <stdlib.h>
-
-static void binary_swap(arvm_binary_expr_t *expr) {
-  if (!(expr->op == OR || expr->op == AND || expr->op == XOR ||
-        expr->op == ADD))
-    return;
-
-  arvm_expr_t *rhs = expr->rhs;
-  expr->rhs = expr->lhs;
-  expr->lhs = rhs;
-}
 
 // TODO: is this needed
 static void substitute(arvm_expr_t *expr, arvm_expr_t *with,
@@ -27,33 +18,41 @@ static void substitute(arvm_expr_t *expr, arvm_expr_t *with,
 void arvm_optimize(arvm_expr_t *expr, void *ctx_) {
   arvm_opt_ctx_t *ctx = ctx_;
 
-  switch (expr->kind) {
+  /*switch (expr->kind) {
   case BINARY: {
-    if (expr->binary.lhs->kind == CONST) {
-      if (expr->binary.rhs->kind == CONST) {
-        // If we encounter constant expressions on both sides, evaluate the
-        // binary at compile time
-        arvm_val_t value = eval_binary(&expr->binary, (arvm_ctx_t){0});
-        expr->kind = CONST;
-        expr->const_.value = value;
-        break;
-      } else {
-        // If only the LHS is constant, we move it to the RHS to simplify
-        // further pattern matching
-        binary_swap(&expr->binary);
-      }
+    // If both sides are constant evaluate the expression at compile time
+    if (matches(expr, BINARY(expr->binary.op, CONST(), CONST()))) {
+      arvm_val_t value = eval_binary(&expr->binary, (arvm_ctx_t){0});
+      expr->kind = CONST;
+      expr->const_.value = value;
+      return;
     }
 
-    // If the LHS is an 'in interval' expression, we also move it to the RHS
-    // (unless RHS is constant)
-    if (expr->binary.lhs->kind == IN_INTERVAL &&
-        expr->binary.rhs->kind != CONST)
-      binary_swap(&expr->binary);
+    { // Boolean algebra laws
 
-    arvm_expr_t *lhs = expr->binary.lhs;
-    arvm_expr_t *rhs = expr->binary.rhs;
+      { // Annulment Law
+        arvm_expr_t *const_;
+        if (matches(expr, BINARY(OR, ANY(), CONSTVAL(1, &const_))) ||
+            matches(expr, BINARY(AND, ANY(), CONSTVAL(0, &const_))))
+          return substitute(expr, const_, ctx);
+      }
 
-    bool rhsConst = rhs->kind == CONST;
+      { // Identity Law
+        arvm_expr_t *value;
+        if (matches(expr, BINARY(OR, ANY(&value), CONSTVAL(0))) ||
+            matches(expr, BINARY(AND, ANY(&value), CONSTVAL(1))))
+          return substitute(expr, value, ctx);
+      }
+
+      { // TODO: Idempotent Law
+      }
+
+      { // TODO: Double Negation Law
+      }
+
+      { // TODO: Complement Law
+      }
+    }
 
     switch (expr->binary.op) {
     case OR:
@@ -183,7 +182,7 @@ void arvm_optimize(arvm_expr_t *expr, void *ctx_) {
   }
   default:
     break;
-  }
+  }*/
 }
 
 void arvm_optimize_fn(arvm_func_t *func, arena_t *arena) {

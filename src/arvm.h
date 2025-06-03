@@ -1,4 +1,5 @@
 #include <limits.h>
+#include <stddef.h>
 #include <stdint.h>
 
 #ifndef ARVM
@@ -7,16 +8,20 @@ typedef long long arvm_val_t;
 
 typedef struct expression arvm_expr_t;
 
+typedef struct expression_list {
+  size_t size;
+  arvm_expr_t **exprs;
+} arvm_exprlist_t;
+
 typedef struct function arvm_func_t;
 
-typedef enum binary_op { OR, AND, XOR, ADD, MOD } arvm_binop_t;
+typedef enum nary_op { OR, AND, XOR, ADD } arvm_nary_op_t;
 
 // Binary expression, equivalent to arithmetic/boolean operations
-typedef struct binary_expr {
-  arvm_binop_t op;
-  arvm_expr_t *lhs;
-  arvm_expr_t *rhs;
-} arvm_binary_expr_t;
+typedef struct nary_expr {
+  arvm_nary_op_t op;
+  arvm_exprlist_t args;
+} arvm_nary_expr_t;
 
 // Interval expression, checks whether the value is within an expected range
 // (inclusive)
@@ -25,13 +30,6 @@ typedef struct in_interval_expr {
   arvm_val_t min;
   arvm_val_t max;
 } arvm_in_interval_expr_t;
-
-typedef enum ref_type { ARG } arvm_ref_t;
-
-// Reference expression, can be used to retrieve the argument value
-typedef struct ref_expr {
-  arvm_ref_t ref;
-} arvm_ref_expr_t;
 
 // Call expression
 typedef struct call_expr {
@@ -45,9 +43,9 @@ typedef struct const_expr {
 } arvm_const_expr_t;
 
 typedef enum expr_kind {
-  BINARY,
+  NARY,
   IN_INTERVAL,
-  REF,
+  ARG_REF,
   CALL,
   CONST,
   NONE = -1
@@ -56,9 +54,8 @@ typedef enum expr_kind {
 struct expression {
   arvm_expr_kind_t kind;
   union {
-    arvm_binary_expr_t binary;
+    arvm_nary_expr_t nary;
     arvm_in_interval_expr_t in_interval;
-    arvm_ref_expr_t ref;
     arvm_call_expr_t call;
     arvm_const_expr_t const_;
   };

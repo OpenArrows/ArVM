@@ -9,12 +9,14 @@ void setUp(void) {}
 
 void tearDown(void) { arena_free(&arena); }
 
-void test_make_binary(void) {
+void test_make_nary(void) {
   arvm_expr_t const0 = {CONST, .const_ = {0}};
   arvm_expr_t const1 = {CONST, .const_ = {1}};
-  arvm_expr_t binary = {BINARY, .binary = {AND, &const0, &const1}};
-  TEST_ASSERT(
-      is_identical(&binary, make_binary(&arena, AND, &const0, &const1)));
+  arvm_expr_t const2 = {CONST, .const_ = {2}};
+  arvm_expr_t nary = {
+      NARY, .nary = {ADD, {3, (arvm_expr_t *[]){&const0, &const1, &const2}}}};
+  TEST_ASSERT(is_identical(
+      &nary, make_nary(&arena, ADD, 3, &const0, &const1, &const2)));
 }
 
 void test_make_in_interval(void) {
@@ -27,9 +29,9 @@ void test_make_in_interval(void) {
                                      ARVM_POSITIVE_INFINITY)));
 }
 
-void test_make_ref(void) {
-  arvm_expr_t ref = {REF, .ref = {ARG}};
-  TEST_ASSERT(is_identical(&ref, make_ref(&arena, ARG)));
+void test_make_arg_ref(void) {
+  arvm_expr_t arg_ref = {ARG_REF};
+  TEST_ASSERT(is_identical(&arg_ref, make_arg_ref(&arena)));
 }
 
 void test_make_call(void) {
@@ -45,20 +47,20 @@ void test_make_const(void) {
 }
 
 void test_clone_expr(void) {
-  arvm_expr_t arg = {REF, .ref = {ARG}};
+  arvm_expr_t arg_ref = {ARG_REF};
   arvm_expr_t lhs = {CONST, .const_ = {1}};
-  arvm_expr_t rhs = {CALL, .call = {NULL, &arg}};
-  arvm_expr_t binary = {BINARY, .binary = {OR, &lhs, &rhs}};
-  arvm_expr_t copy;
-  clone_expr(&arena, &binary, &copy);
-  TEST_ASSERT(is_identical(&copy, &binary));
+  arvm_expr_t rhs = {CALL, .call = {NULL, &arg_ref}};
+  arvm_expr_t nary = {NARY, .nary = {OR, {2, (arvm_expr_t *[]){&lhs, &rhs}}}};
+  arvm_expr_t copy = {NONE};
+  clone_expr(&arena, &nary, &copy);
+  TEST_ASSERT(is_identical(&copy, &nary));
 }
 
 int main(void) {
   UNITY_BEGIN();
-  RUN_TEST(test_make_binary);
+  RUN_TEST(test_make_nary);
   RUN_TEST(test_make_in_interval);
-  RUN_TEST(test_make_ref);
+  RUN_TEST(test_make_arg_ref);
   RUN_TEST(test_make_call);
   RUN_TEST(test_make_const);
   RUN_TEST(test_clone_expr);

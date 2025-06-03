@@ -1,38 +1,51 @@
 #include "analyze.h"
+#include <string.h>
+
+#include <stdio.h>
 
 bool is_identical(arvm_expr_t *a, arvm_expr_t *b) {
+  if (a == NULL || b == NULL)
+    return false;
+
   if (a->kind != b->kind)
     return false;
 
   switch (a->kind) {
-  case BINARY:
-    return a->binary.op == b->binary.op &&
-           is_identical(a->binary.lhs, b->binary.lhs) &&
-           is_identical(a->binary.rhs, b->binary.rhs);
+  case NARY: {
+    if (a->nary.op != b->nary.op)
+      return false;
+
+    size_t argc = a->nary.args.size;
+    if (b->nary.args.size != argc)
+      return false;
+
+    arvm_expr_t *args[argc];
+    memcpy(args, a->nary.args.exprs, sizeof(args));
+    for (int i = 0; i < argc; i++) {
+      arvm_expr_t *arg_b = b->nary.args.exprs[i];
+      for (int j = 0; j < argc; j++) {
+        if (is_identical(args[j], arg_b)) {
+          args[j] = NULL;
+          goto next;
+        }
+      }
+      return false;
+    next:
+      continue;
+    }
+    return true;
+  }
   case IN_INTERVAL:
     return a->in_interval.min == b->in_interval.min &&
            a->in_interval.max == b->in_interval.max &&
            is_identical(a->in_interval.value, b->in_interval.value);
-  case REF:
-    return a->ref.ref == b->ref.ref;
   case CALL:
     return a->call.target == b->call.target &&
            is_identical(a->call.arg, b->call.arg);
   case CONST:
     return a->const_.value == b->const_.value;
+  case ARG_REF:
   case NONE:
     return true;
-  }
-}
-
-bool is_symmetric(arvm_binop_t op) {
-  switch (op) {
-  case OR:
-  case AND:
-  case XOR:
-  case ADD:
-    return true;
-  case MOD:
-    return false;
   }
 }

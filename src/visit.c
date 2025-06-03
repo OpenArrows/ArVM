@@ -3,9 +3,9 @@
 void visit_children(arvm_expr_t *expr, void (*visitor)(arvm_expr_t *, void *),
                     void *ctx) {
   switch (expr->kind) {
-  case BINARY:
-    visit(expr->binary.lhs, visitor, ctx);
-    visit(expr->binary.rhs, visitor, ctx);
+  case NARY:
+    for (int i = 0; i < expr->nary.args.size; i++)
+      visit(expr->nary.args.exprs[i], visitor, ctx);
     break;
   case IN_INTERVAL:
     visit(expr->in_interval.value, visitor, ctx);

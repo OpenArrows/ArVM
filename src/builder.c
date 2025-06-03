@@ -1,14 +1,20 @@
 #include "builder.h"
+#include <stdarg.h>
 #include <stdlib.h>
 #include <string.h>
 
-arvm_expr_t *make_binary(arena_t *arena, arvm_binop_t op, arvm_expr_t *lhs,
-                         arvm_expr_t *rhs) {
+arvm_expr_t *make_nary(arena_t *arena, arvm_nary_op_t op, size_t arg_count,
+                       ...) {
   arvm_expr_t *expr = arena_alloc(arena, sizeof(arvm_expr_t));
-  expr->kind = BINARY;
-  expr->binary.op = op;
-  expr->binary.lhs = lhs;
-  expr->binary.rhs = rhs;
+  expr->kind = NARY;
+  expr->nary.op = op;
+  expr->nary.args.size = arg_count;
+  expr->nary.args.exprs = arena_alloc(arena, sizeof(arvm_expr_t *) * arg_count);
+  va_list args;
+  va_start(args, arg_count);
+  for (int i = 0; i < arg_count; i++)
+    expr->nary.args.exprs[i] = va_arg(args, arvm_expr_t *);
+  va_end(args);
   return expr;
 }
 
@@ -22,10 +28,9 @@ arvm_expr_t *make_in_interval(arena_t *arena, arvm_expr_t *value,
   return expr;
 }
 
-arvm_expr_t *make_ref(arena_t *arena, arvm_ref_t ref) {
+arvm_expr_t *make_arg_ref(arena_t *arena) {
   arvm_expr_t *expr = arena_alloc(arena, sizeof(arvm_expr_t));
-  expr->kind = REF;
-  expr->ref.ref = ref;
+  expr->kind = ARG_REF;
   return expr;
 }
 
@@ -44,23 +49,40 @@ arvm_expr_t *make_const(arena_t *arena, arvm_val_t value) {
   return expr;
 }
 
-static arvm_expr_t *create_or_reuse_expr(arena_t *arena, arvm_expr_t *old) {
-  if (old != NULL) {
-    old->kind = NONE;
-    return old;
-  }
-  return arena_alloc(arena, sizeof(arvm_expr_t));
+static arvm_expr_t *create_or_reuse_expr(arena_t *arena,
+                                         arvm_expr_t **reusables,
+                                         size_t resuable_count, size_t idx,
+                                         const arvm_expr_t *src) {
+  arvm_expr_t *expr = idx < resuable_count
+                          ? reusables[idx]
+                          : arena_alloc(arena, sizeof(arvm_expr_t));
+  expr->kind = NONE;
+  clone_expr(arena, src, expr);
+  return expr;
 }
 
 void clone_expr(arena_t *arena, const arvm_expr_t *src, arvm_expr_t *dst) {
   arvm_expr_t expr;
   memcpy(&expr, src, sizeof(expr));
 
-  arvm_expr_t *subexprs[2] = {NULL};
+  size_t subexpr_count;
   switch (dst->kind) {
-  case BINARY:
-    subexprs[0] = dst->binary.lhs;
-    subexprs[1] = dst->binary.rhs;
+  case NARY:
+    subexpr_count = dst->nary.args.size;
+    break;
+  case IN_INTERVAL:
+  case CALL:
+    subexpr_count = 1;
+    break;
+  default:
+    subexpr_count = 0;
+    break;
+  }
+
+  arvm_expr_t *subexprs[subexpr_count];
+  switch (dst->kind) {
+  case NARY:
+    memcpy(subexprs, dst->nary.args.exprs, sizeof(subexprs));
     break;
   case IN_INTERVAL:
     subexprs[0] = dst->in_interval.value;
@@ -74,30 +96,32 @@ void clone_expr(arena_t *arena, const arvm_expr_t *src, arvm_expr_t *dst) {
 
   dst->kind = expr.kind;
   switch (expr.kind) {
-  case BINARY:
-    dst->binary.op = expr.binary.op;
-    dst->binary.lhs = create_or_reuse_expr(arena, subexprs[0]);
-    clone_expr(arena, expr.binary.lhs, dst->binary.lhs);
-    dst->binary.rhs = create_or_reuse_expr(arena, subexprs[1]);
-    clone_expr(arena, expr.binary.rhs, dst->binary.rhs);
+  case NARY:
+    dst->nary.op = expr.nary.op;
+    dst->nary.args.size = expr.nary.args.size;
+    dst->nary.args.exprs =
+        arena_alloc(arena, sizeof(arvm_expr_t *) *
+                               expr.nary.args.size); // TODO: reuse memory
+    for (int i = 0; i < expr.nary.args.size; i++) {
+      dst->nary.args.exprs[i] = create_or_reuse_expr(
+          arena, subexprs, subexpr_count, i, expr.nary.args.exprs[i]);
+    }
     break;
   case IN_INTERVAL:
-    dst->in_interval.value = create_or_reuse_expr(arena, subexprs[0]);
-    clone_expr(arena, expr.in_interval.value, dst->in_interval.value);
+    dst->in_interval.value = create_or_reuse_expr(
+        arena, subexprs, subexpr_count, 0, expr.in_interval.value);
     dst->in_interval.min = expr.in_interval.min;
     dst->in_interval.max = expr.in_interval.max;
     break;
-  case REF:
-    dst->ref.ref = expr.ref.ref;
-    break;
   case CALL:
     dst->call.target = expr.call.target;
-    dst->call.arg = create_or_reuse_expr(arena, subexprs[0]);
-    clone_expr(arena, expr.call.arg, dst->call.arg);
+    dst->call.arg =
+        create_or_reuse_expr(arena, subexprs, subexpr_count, 0, expr.call.arg);
     break;
   case CONST:
     dst->const_.value = expr.const_.value;
     break;
+  case ARG_REF:
   case NONE:
     break;
   }
