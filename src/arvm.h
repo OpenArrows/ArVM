@@ -48,7 +48,11 @@ typedef enum expr_kind {
   ARG_REF,
   CALL,
   CONST,
-  NONE = -1
+
+  // Special expression kinds
+  NONE = -1,
+  UNKNOWN = -2,
+  RESERVED = -3
 } arvm_expr_kind_t;
 
 struct expression {

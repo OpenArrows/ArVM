@@ -3,10 +3,15 @@
 #include <stdlib.h>
 #include <string.h>
 
+arvm_expr_t *make_expr(arena_t *arena, arvm_expr_kind_t kind) {
+  arvm_expr_t *expr = arena_alloc(arena, sizeof(arvm_expr_t));
+  expr->kind = kind;
+  return expr;
+}
+
 arvm_expr_t *make_nary(arena_t *arena, arvm_nary_op_t op, size_t arg_count,
                        ...) {
-  arvm_expr_t *expr = arena_alloc(arena, sizeof(arvm_expr_t));
-  expr->kind = NARY;
+  arvm_expr_t *expr = make_expr(arena, NARY);
   expr->nary.op = op;
   expr->nary.args.size = arg_count;
   expr->nary.args.exprs = arena_alloc(arena, sizeof(arvm_expr_t *) * arg_count);
@@ -20,38 +25,25 @@ arvm_expr_t *make_nary(arena_t *arena, arvm_nary_op_t op, size_t arg_count,
 
 arvm_expr_t *make_in_interval(arena_t *arena, arvm_expr_t *value,
                               arvm_val_t min, arvm_val_t max) {
-  arvm_expr_t *expr = arena_alloc(arena, sizeof(arvm_expr_t));
-  expr->kind = IN_INTERVAL;
+  arvm_expr_t *expr = make_expr(arena, IN_INTERVAL);
   expr->in_interval.value = value;
   expr->in_interval.min = min;
   expr->in_interval.max = max;
   return expr;
 }
 
-arvm_expr_t *make_arg_ref(arena_t *arena) {
-  arvm_expr_t *expr = arena_alloc(arena, sizeof(arvm_expr_t));
-  expr->kind = ARG_REF;
-  return expr;
-}
+arvm_expr_t *make_arg_ref(arena_t *arena) { return make_expr(arena, ARG_REF); }
 
 arvm_expr_t *make_call(arena_t *arena, arvm_func_t *target, arvm_expr_t *arg) {
-  arvm_expr_t *expr = arena_alloc(arena, sizeof(arvm_expr_t));
-  expr->kind = CALL;
+  arvm_expr_t *expr = make_expr(arena, CALL);
   expr->call.target = target;
   expr->call.arg = arg;
   return expr;
 }
 
 arvm_expr_t *make_const(arena_t *arena, arvm_val_t value) {
-  arvm_expr_t *expr = arena_alloc(arena, sizeof(arvm_expr_t));
-  expr->kind = CONST;
+  arvm_expr_t *expr = make_expr(arena, CONST);
   expr->const_.value = value;
-  return expr;
-}
-
-arvm_expr_t *make_none(arena_t *arena) {
-  arvm_expr_t *expr = arena_alloc(arena, sizeof(arvm_expr_t));
-  expr->kind = NONE;
   return expr;
 }
 
