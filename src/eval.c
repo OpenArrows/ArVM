@@ -1,4 +1,5 @@
 #include "eval.h"
+#include <stddef.h>
 
 arvm_val_t eval_nary(arvm_nary_expr_t *expr, arvm_ctx_t ctx) {
   switch (expr->op) {
@@ -56,8 +57,8 @@ arvm_val_t eval_expr(arvm_expr_t *expr, arvm_ctx_t ctx) {
     return eval_call(&expr->call, ctx);
   case CONST:
     return eval_const(&expr->const_);
-  case NONE:
-    return 0;
+  default:
+    unreachable();
   }
 }
 

@@ -1,5 +1,6 @@
 #include "builder.h"
 #include <stdarg.h>
+#include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -119,6 +120,9 @@ void clone_expr(arena_t *arena, const arvm_expr_t *src, arvm_expr_t *dst) {
     break;
   case ARG_REF:
   case NONE:
+  case UNKNOWN:
     break;
+  default:
+    unreachable();
   }
 }

@@ -46,6 +46,9 @@ bool is_identical(arvm_expr_t *a, arvm_expr_t *b) {
     return a->const_.value == b->const_.value;
   case ARG_REF:
   case NONE:
+  case UNKNOWN:
     return true;
+  default:
+    unreachable();
   }
 }
