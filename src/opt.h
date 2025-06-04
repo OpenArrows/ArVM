@@ -8,7 +8,6 @@ struct opt_context {
   arena_t *tmp_arena;
   arena_t *arena;
   arvm_func_t *func;
-  arvm_expr_t *arg;
 };
 
 void arvm_optimize(arvm_expr_t *expr, void *ctx);

@@ -77,6 +77,20 @@ void test_idempotent_law() {
   TEST_ASSERT(is_identical(func.value, exp));
 }
 
+void test_call_inlining() {
+  arvm_func_t callee = {make_arg_ref(&arena)};
+
+  arvm_func_t func = {make_call(&arena, &callee, make_expr(&arena, UNKNOWN))};
+  arvm_optimize_fn(&func, &arena);
+
+  arvm_expr_t *exp =
+      make_nary(&arena, AND, 2, make_expr(&arena, UNKNOWN),
+                make_in_interval(&arena, make_expr(&arena, UNKNOWN), 1,
+                                 ARVM_POSITIVE_INFINITY));
+
+  TEST_ASSERT(is_identical(func.value, exp));
+}
+
 int main(void) {
   UNITY_BEGIN();
   RUN_TEST(test_unwrap_nary);
@@ -85,5 +99,6 @@ int main(void) {
   RUN_TEST(test_annulment_law);
   RUN_TEST(test_identity_law);
   RUN_TEST(test_idempotent_law);
+  RUN_TEST(test_call_inlining);
   return UNITY_END();
 }

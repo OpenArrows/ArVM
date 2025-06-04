@@ -102,6 +102,40 @@ void arvm_optimize(arvm_expr_t *expr, void *ctx_) {
       }
     } // Boolean laws
 
+    { // Call inlining
+      if (matches(expr, CALL(ANY()))) {
+        // We don't want to get stuck when inlining recursive functions
+        arvm_opt_ctx_t *context = ctx;
+        while (context) {
+          if (expr->call.target == context->func)
+            goto noinline;
+          context = context->parent;
+        }
+
+        arvm_func_t *func = expr->call.target;
+
+        // Besides just inlining the function, we also need to check that the
+        // argument value is > 0, because functions are only defined for
+        // positive arguments
+        arvm_expr_t *func_val =
+            make_clone(ctx->tmp_arena, expr->call.target->value);
+        replace(ctx->tmp_arena, func_val, ARG_REF(), expr->call.arg);
+        transpose(ctx->arena,
+                  make_nary(ctx->tmp_arena, AND, 2, func_val,
+                            make_in_interval(
+                                ctx->tmp_arena,
+                                make_clone(ctx->tmp_arena, expr->call.arg), 1,
+                                ARVM_POSITIVE_INFINITY)),
+                  expr);
+
+        visit(expr, arvm_optimize,
+              &(arvm_opt_ctx_t){ctx, ctx->tmp_arena, ctx->arena,
+                                func}); // TODO: do we need recursion here?
+        return;
+      }
+    noinline:;
+    }
+
   } while (!is_identical(
       prev, expr)); // Repeat optimizations until no transformation is applied
 }
@@ -109,6 +143,6 @@ void arvm_optimize(arvm_expr_t *expr, void *ctx_) {
 void arvm_optimize_fn(arvm_func_t *func, arena_t *arena) {
   arena_t tmp_arena = (arena_t){sizeof(arvm_expr_t) * OPT_ARENA_BLOCK_SIZE};
   visit(func->value, arvm_optimize,
-        &(arvm_opt_ctx_t){NULL, &tmp_arena, arena, func, NULL});
+        &(arvm_opt_ctx_t){NULL, &tmp_arena, arena, func});
   arena_free(&tmp_arena);
 }
