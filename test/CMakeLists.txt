@@ -6,6 +6,10 @@ add_executable(arvm_test_builder builder.c)
 target_link_libraries(arvm_test_builder arvm unity)
 add_test(NAME ArVM_builder COMMAND arvm_test_builder)
 
+add_executable(arvm_test_match match.c)
+target_link_libraries(arvm_test_match arvm unity)
+add_test(NAME ArVM_match COMMAND arvm_test_match)
+
 add_executable(arvm_test_opt opt.c)
 target_link_libraries(arvm_test_opt arvm unity)
 add_test(NAME ArVM_opt COMMAND arvm_test_opt)
