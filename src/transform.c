@@ -10,7 +10,7 @@ typedef struct replace_ctx {
 } replace_ctx_t;
 
 void transpose(arena_t *arena, const arvm_expr_t *what, arvm_expr_t *where) {
-  clone_expr(arena, what, where);
+  copy_expr(arena, what, where);
 }
 
 void nary_remove(arvm_expr_t *nary, arvm_expr_t *arg) {

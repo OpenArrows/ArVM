@@ -48,17 +48,23 @@ arvm_expr_t *make_const(arena_t *arena, arvm_val_t value) {
   return expr;
 }
 
+arvm_expr_t *make_clone(arena_t *arena, const arvm_expr_t *expr) {
+  arvm_expr_t *clone = make_expr(arena, NONE);
+  copy_expr(arena, expr, clone);
+  return clone;
+}
+
 static arvm_expr_t *create_or_reuse_expr(arena_t *arena,
                                          arvm_expr_t **reusables,
                                          size_t resuable_count, size_t idx,
                                          const arvm_expr_t *src) {
   arvm_expr_t *expr =
       idx < resuable_count ? reusables[idx] : make_expr(arena, NONE);
-  clone_expr(arena, src, expr);
+  copy_expr(arena, src, expr);
   return expr;
 }
 
-void clone_expr(arena_t *arena, const arvm_expr_t *src, arvm_expr_t *dst) {
+void copy_expr(arena_t *arena, const arvm_expr_t *src, arvm_expr_t *dst) {
   arvm_expr_t expr;
   memcpy(&expr, src, sizeof(expr));
 

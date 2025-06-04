@@ -16,7 +16,7 @@ void arvm_optimize(arvm_expr_t *expr, void *ctx_) {
 
   arvm_expr_t *prev = make_expr(ctx->tmp_arena, NONE);
   do {
-    clone_expr(ctx->tmp_arena, expr, prev);
+    copy_expr(ctx->tmp_arena, expr, prev);
 
     { // General n-ary optimizations
       {

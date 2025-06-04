@@ -46,13 +46,13 @@ void test_make_const(void) {
       is_identical(&const_, make_const(&arena, ARVM_POSITIVE_INFINITY)));
 }
 
-void test_clone_expr(void) {
+void test_copy_expr(void) {
   arvm_expr_t arg_ref = {ARG_REF};
   arvm_expr_t lhs = {CONST, .const_ = {1}};
   arvm_expr_t rhs = {CALL, .call = {NULL, &arg_ref}};
   arvm_expr_t nary = {NARY, .nary = {OR, {2, (arvm_expr_t *[]){&lhs, &rhs}}}};
   arvm_expr_t copy = {NONE};
-  clone_expr(&arena, &nary, &copy);
+  copy_expr(&arena, &nary, &copy);
   TEST_ASSERT(is_identical(&copy, &nary));
 }
 
@@ -63,6 +63,6 @@ int main(void) {
   RUN_TEST(test_make_arg_ref);
   RUN_TEST(test_make_call);
   RUN_TEST(test_make_const);
-  RUN_TEST(test_clone_expr);
+  RUN_TEST(test_copy_expr);
   return UNITY_END();
 }
