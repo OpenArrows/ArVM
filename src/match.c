@@ -158,14 +158,14 @@ static bool try_match(arvm_expr_t *expr, pattern_t *pattern) {
 static int find_slots(pattern_t *pattern, pattern_t **slots) {
   switch (pattern->kind) {
   case EXPR_SLOT:
-    if (slots != NULL)
+    if (slots)
       *slots = pattern;
     return 1;
   case EXPR_NARY: {
     int sum = 0;
     for (int i = 0; i < pattern->nary.args.size; i++) {
       pattern_t *arg_pattern = pattern->nary.args.patterns[i];
-      sum += find_slots(arg_pattern, slots++);
+      sum += find_slots(arg_pattern, slots == NULL ? NULL : slots++);
     }
     return sum;
   }
@@ -196,18 +196,24 @@ bool matches(arvm_expr_t *expr, pattern_t *pattern) {
   }
 
   int indices[slot_count];
+  memset(indices, 0, sizeof(indices));
   for (;;) {
-    arvm_expr_t *expr = *slots[0]->capture = slots[0]->slot.matches[indices[0]];
+    arvm_expr_t *matched_expr = slots[0]->slot.matches[indices[0]];
+    if (slots[0]->capture)
+      *slots[0]->capture = matched_expr;
     for (int i = 1; i < slot_count; i++) {
-      if (!is_identical(expr, *slots[i]->capture =
-                                  slots[i]->slot.matches[indices[i]]))
+      if (is_identical(matched_expr, slots[i]->slot.matches[indices[i]])) {
+        if (slots[i]->capture)
+          *slots[i]->capture = matched_expr;
+      } else
         goto skip;
     }
+    goto end;
 
   skip:
     for (int i = 0; i < slot_count; i++) {
       indices[i]++;
-      if (indices[i] > slots[i]->slot.match_count) {
+      if (indices[i] >= slots[i]->slot.match_count) {
         if (i == slot_count - 1)
           goto fail;
         indices[i] = 0;
@@ -218,6 +224,11 @@ bool matches(arvm_expr_t *expr, pattern_t *pattern) {
 
 fail:
   result = false;
+
+  for (int i = 0; i < slot_count; i++) {
+    if (slots[i]->capture)
+      *slots[i]->capture = NULL;
+  }
 
 end:
   for (int i = 0; i < slot_count; i++) {
