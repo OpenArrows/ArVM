@@ -1,5 +1,6 @@
 #include "opt.h"
 #include "analyze.h"
+#include "builder.h"
 #include "eval.h"
 #include "imath.h"
 #include "match.h"
