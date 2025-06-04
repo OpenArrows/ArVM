@@ -77,10 +77,9 @@ struct pattern {
 
 // Slots are the same as 'any' pattern, except that the expression in each slot
 // must be identical to other matched expressions
-#define SLOT_AS(capture, index)                                                \
-  (&(pattern_t){EXPR_SLOT, &capture, .slot = {index}})
+#define SLOT_AS(capture) (&(pattern_t){EXPR_SLOT, &capture})
 
-#define SLOT(index) SLOT_AS(*NULL, index)
+#define SLOT() SLOT_AS(*NULL)
 
 // Matches an n-ary expression
 #define NARY_AS(capture, op, ...)                                              \

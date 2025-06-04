@@ -4,6 +4,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+#define SLOT_MATCH_BLOCK_SIZE 4
+
 bool val_matches(arvm_val_t val, val_pattern_t pattern) {
   switch (pattern.kind) {
   case VAL_ANY:
@@ -16,10 +18,35 @@ bool val_matches(arvm_val_t val, val_pattern_t pattern) {
 static void capture(pattern_t *pattern, arvm_expr_t *expr) {
   if (pattern->capture)
     *pattern->capture = expr;
-  // TODO: slots
+  if (pattern->kind == EXPR_SLOT) {
+    pattern->slot.match_count++;
+    if (pattern->slot.match_count > pattern->slot.capacity) {
+      pattern->slot.capacity += SLOT_MATCH_BLOCK_SIZE;
+      pattern->slot.matches =
+          realloc(pattern->slot.matches,
+                  sizeof(arvm_expr_t *) * pattern->slot.capacity);
+    }
+    pattern->slot.matches[pattern->slot.match_count - 1] = expr;
+  }
+}
+
+static void uncapture(pattern_t *pattern, arvm_expr_t *expr) {
+  if (pattern->capture && *pattern->capture == expr)
+    *pattern->capture = NULL;
+  if (pattern->kind == EXPR_SLOT) {
+    for (int i = 0; i < pattern->slot.match_count; i++)
+      if (pattern->slot.matches[i] == expr) {
+        pattern->slot.match_count--;
+        memcpy(&pattern->slot.matches[i], &pattern->slot.matches[i + 1],
+               sizeof(arvm_expr_t *) * (pattern->slot.match_count - i));
+        break;
+      }
+  }
 }
 
 static bool try_match(arvm_expr_t *expr, pattern_t *pattern);
+
+static bool cmp_pattern(arvm_expr_t *expr, pattern_t *pattern);
 
 struct nary_arg_match {
   size_t count;
@@ -49,6 +76,7 @@ static bool backtrack_nary_args(struct nary_arg_match *matches, size_t count,
       expr->kind = kind;
       if (result)
         return true;
+      uncapture(match.pattern, expr);
     }
   }
 
@@ -79,7 +107,7 @@ static bool cmp_pattern(arvm_expr_t *expr, pattern_t *pattern) {
       pattern_t *arg_pattern = match->pattern = pattern->nary.args.patterns[i];
       for (int j = 0; j < expr->nary.args.size; j++) {
         arvm_expr_t *arg_expr = expr->nary.args.exprs[j];
-        if (try_match(arg_expr, arg_pattern))
+        if (cmp_pattern(arg_expr, arg_pattern))
           match->exprs[match->count++] = arg_expr;
       }
     }
