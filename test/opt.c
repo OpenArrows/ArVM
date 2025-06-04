@@ -47,10 +47,43 @@ void test_eval_nary() {
   TEST_ASSERT(is_identical(func.value, exp));
 }
 
+void test_annulment_law() {
+  arvm_func_t func = {make_nary(&arena, AND, 2, make_expr(&arena, UNKNOWN),
+                                make_const(&arena, 0))};
+  arvm_optimize_fn(&func, &arena);
+
+  arvm_expr_t *exp = make_const(&arena, 0);
+
+  TEST_ASSERT(is_identical(func.value, exp));
+}
+
+void test_identity_law() {
+  arvm_func_t func = {make_nary(&arena, OR, 2, make_expr(&arena, UNKNOWN),
+                                make_const(&arena, 0))};
+  arvm_optimize_fn(&func, &arena);
+
+  arvm_expr_t *exp = make_expr(&arena, UNKNOWN);
+
+  TEST_ASSERT(is_identical(func.value, exp));
+}
+
+void test_idempotent_law() {
+  arvm_func_t func = {make_nary(&arena, AND, 2, make_expr(&arena, UNKNOWN),
+                                make_expr(&arena, UNKNOWN))};
+  arvm_optimize_fn(&func, &arena);
+
+  arvm_expr_t *exp = make_expr(&arena, UNKNOWN);
+
+  TEST_ASSERT(is_identical(func.value, exp));
+}
+
 int main(void) {
   UNITY_BEGIN();
   RUN_TEST(test_unwrap_nary);
   RUN_TEST(test_fold_nary);
   RUN_TEST(test_eval_nary);
+  RUN_TEST(test_annulment_law);
+  RUN_TEST(test_identity_law);
+  RUN_TEST(test_idempotent_law);
   return UNITY_END();
 }

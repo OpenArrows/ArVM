@@ -5,6 +5,7 @@ typedef struct opt_context arvm_opt_ctx_t;
 
 struct opt_context {
   arvm_opt_ctx_t *parent;
+  arena_t *tmp_arena;
   arena_t *arena;
   arvm_func_t *func;
   arvm_expr_t *arg;
