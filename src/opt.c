@@ -1,6 +1,5 @@
 #include "opt.h"
 #include "analyze.h"
-#include "builder.h"
 #include "eval.h"
 #include "imath.h"
 #include "match.h"
@@ -11,13 +10,6 @@
 #include <string.h>
 
 #define OPT_ARENA_BLOCK_SIZE 16
-
-// TODO: is this needed
-static void substitute(arvm_expr_t *expr, arvm_expr_t *with,
-                       arvm_opt_ctx_t *ctx) {
-  clone_expr(ctx->arena, with, expr);
-  visit(expr, arvm_optimize, ctx);
-}
 
 void arvm_optimize(arvm_expr_t *expr, void *ctx_) {
   arvm_opt_ctx_t *ctx = ctx_;
@@ -31,7 +23,7 @@ void arvm_optimize(arvm_expr_t *expr, void *ctx_) {
         // Unwrap n-ary expressions
         arvm_expr_t *child;
         if (matches(expr, NARY_FIXED(ANYVAL(), ANY_AS(child)))) {
-          clone_expr(ctx->arena, child, expr);
+          transpose(ctx->arena, child, expr);
           return;
         }
       }
@@ -74,7 +66,7 @@ void arvm_optimize(arvm_expr_t *expr, void *ctx_) {
         if (matches(expr, NARY_EACH(ANYVAL(), CONST(ANYVAL())))) {
           arvm_val_t value = eval_nary(&expr->nary, (arvm_ctx_t){0});
           arvm_expr_t const_ = {CONST, .const_ = {value}};
-          clone_expr(ctx->arena, &const_, expr);
+          transpose(ctx->arena, &const_, expr);
           return;
         }
       }
