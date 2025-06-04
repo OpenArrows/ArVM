@@ -13,6 +13,12 @@ typedef struct val_pattern {
   };
 } val_pattern_t;
 
+#define ANYVAL() ((val_pattern_t){VAL_ANY})
+
+// TODO: #define SLOTVAL() (val_pattern_t) { VAL_SLOT }
+
+#define VAL(val) ((val_pattern_t){VAL_SPECIFIC, .specific = val})
+
 typedef struct pattern pattern_t;
 
 typedef struct pattern_list {
@@ -68,12 +74,6 @@ struct pattern {
 #define ANY_AS(capture) (&(pattern_t){EXPR_ANY, &capture})
 
 #define ANY() ANY_AS(*NULL)
-
-#define ANYVAL() ((val_pattern_t){VAL_ANY})
-
-// TODO: #define SLOTVAL() (val_pattern_t) { VAL_SLOT }
-
-#define VAL(val) ((val_pattern_t){VAL_SPECIFIC, .specific = val})
 
 // Slots are the same as 'any' pattern, except that the expression in each slot
 // must be identical to other matched expressions
