@@ -1,6 +1,13 @@
 #include "transform.h"
 #include "builder.h"
+#include "visit.h"
 #include <string.h>
+
+typedef struct replace_ctx {
+  arena_t *arena;
+  pattern_t *what;
+  arvm_expr_t *with;
+} replace_ctx_t;
 
 void transpose(arena_t *arena, const arvm_expr_t *what, arvm_expr_t *where) {
   clone_expr(arena, what, where);
@@ -15,4 +22,15 @@ void nary_remove(arvm_expr_t *nary, arvm_expr_t *arg) {
       break;
     }
   }
+}
+
+static void replace_visitor(arvm_expr_t *expr, void *ctx_) {
+  replace_ctx_t *ctx = ctx_;
+  if (matches(expr, ctx->what))
+    transpose(ctx->arena, ctx->with, expr);
+}
+
+void replace(arena_t *arena, arvm_expr_t *where, pattern_t *what,
+             arvm_expr_t *with) {
+  visit(where, replace_visitor, &(replace_ctx_t){arena, what, with});
 }

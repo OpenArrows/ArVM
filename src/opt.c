@@ -3,7 +3,6 @@
 #include "builder.h"
 #include "eval.h"
 #include "imath.h"
-#include "match.h"
 #include "transform.h"
 #include "visit.h"
 #include <stdbool.h>

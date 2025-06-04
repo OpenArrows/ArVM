@@ -27,9 +27,21 @@ void test_nary_remove(void) {
                                    make_const(&arena, 1))));
 }
 
+void test_replace(void) {
+  arvm_expr_t *expr = make_nary(&arena, ADD, 3, make_const(&arena, 1),
+                                make_call(&arena, NULL, make_const(&arena, 1)),
+                                make_const(&arena, 3));
+  replace(&arena, expr, CONST(VAL(1)), make_const(&arena, 2));
+  TEST_ASSERT(is_identical(
+      expr, make_nary(&arena, ADD, 3, make_const(&arena, 2),
+                      make_call(&arena, NULL, make_const(&arena, 2)),
+                      make_const(&arena, 3))));
+}
+
 int main(void) {
   UNITY_BEGIN();
   RUN_TEST(test_transpose);
   RUN_TEST(test_nary_remove);
+  RUN_TEST(test_replace);
   return UNITY_END();
 }
