@@ -47,6 +47,29 @@ void test_eval_nary() {
   TEST_ASSERT(is_identical(func.value, exp));
 }
 
+void test_normalize_interval() {
+  arvm_func_t func = {
+      make_in_interval(&arena,
+                       make_nary(&arena, ADD, 2, make_expr(&arena, UNKNOWN),
+                                 make_const(&arena, -2)),
+                       0, ARVM_POSITIVE_INFINITY)};
+  arvm_optimize_fn(&func, &arena);
+
+  arvm_expr_t *exp = make_in_interval(&arena, make_expr(&arena, UNKNOWN), 2,
+                                      ARVM_POSITIVE_INFINITY);
+
+  TEST_ASSERT(is_identical(func.value, exp));
+}
+
+void test_eval_interval() {
+  arvm_func_t func = {make_in_interval(&arena, make_const(&arena, 1), 0, 3)};
+  arvm_optimize_fn(&func, &arena);
+
+  arvm_expr_t *exp = make_const(&arena, ARVM_TRUE);
+
+  TEST_ASSERT(is_identical(func.value, exp));
+}
+
 void test_annulment_law() {
   arvm_func_t func = {make_nary(&arena, AND, 2, make_expr(&arena, UNKNOWN),
                                 make_const(&arena, 0))};
@@ -96,6 +119,8 @@ int main(void) {
   RUN_TEST(test_unwrap_nary);
   RUN_TEST(test_fold_nary);
   RUN_TEST(test_eval_nary);
+  RUN_TEST(test_normalize_interval);
+  RUN_TEST(test_eval_interval);
   RUN_TEST(test_annulment_law);
   RUN_TEST(test_identity_law);
   RUN_TEST(test_idempotent_law);

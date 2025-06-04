@@ -77,6 +77,34 @@ void arvm_optimize(arvm_expr_t *expr, void *ctx_) {
       }
     } // General n-ary optimizations
 
+    { // Interval optimizations
+      {
+        // Interval normalization (move const to RHS)
+        arvm_expr_t *nary, *const_;
+        if (matches(expr, IN_INTERVAL(NARY_AS(nary, VAL(ADD),
+                                              CONST_AS(const_, ANYVAL()))))) {
+          nary_remove(nary, const_);
+          visit(nary, arvm_optimize, ctx);
+          expr->in_interval.min =
+              iadd(expr->in_interval.min, -const_->const_.value);
+          expr->in_interval.max =
+              iadd(expr->in_interval.max, -const_->const_.value);
+        }
+      }
+
+      {
+        // Compile-time interval evaluation
+        if (matches(expr, IN_INTERVAL(CONST(ANYVAL())))) {
+          transpose(
+              ctx->arena,
+              make_const(ctx->tmp_arena,
+                         eval_in_interval(&expr->in_interval, (arvm_ctx_t){0})),
+              expr);
+          return;
+        }
+      }
+    } // Interval optimizations
+
     { // Boolean laws
       {
         // Annulment law
