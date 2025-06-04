@@ -63,11 +63,16 @@ void arvm_optimize(arvm_expr_t *expr, void *ctx_) {
 
       {
         // Compile-time n-ary evaluation
-        if (matches(expr, NARY_EACH(ANYVAL(), CONST(ANYVAL())))) {
-          arvm_val_t value = eval_nary(&expr->nary, (arvm_ctx_t){0});
+        arvm_expr_t *a, *b;
+        while (matches(expr, NARY(ANYVAL(), CONST_AS(a, ANYVAL()),
+                                  CONST_AS(b, ANYVAL())))) {
+          arvm_val_t value = eval_nary(
+              &(arvm_nary_expr_t){.op = expr->nary.op,
+                                  .args = {2, (arvm_expr_t *[]){a, b}}},
+              (arvm_ctx_t){0});
           arvm_expr_t const_ = {CONST, .const_ = {value}};
-          transpose(ctx->arena, &const_, expr);
-          return;
+          transpose(ctx->arena, &const_, a);
+          nary_remove(expr, b);
         }
       }
     } // General n-ary optimizations
