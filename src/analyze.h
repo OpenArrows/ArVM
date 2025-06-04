@@ -1,4 +1,4 @@
 #include "arvm.h"
 #include <stdbool.h>
 
-bool is_identical(arvm_expr_t *a, arvm_expr_t *b);
+bool is_identical(const arvm_expr_t *a, const arvm_expr_t *b);

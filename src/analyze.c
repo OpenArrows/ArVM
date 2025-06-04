@@ -3,7 +3,7 @@
 
 #include <stdio.h>
 
-bool is_identical(arvm_expr_t *a, arvm_expr_t *b) {
+bool is_identical(const arvm_expr_t *a, const arvm_expr_t *b) {
   if (a == NULL || b == NULL)
     return false;
 
