@@ -1,4 +1,5 @@
 #include "arvm.h"
+#include "iterators.h"
 #include <stdbool.h>
 #include <stddef.h>
 
@@ -41,15 +42,12 @@ typedef enum pattern_kind {
 struct pattern {
   pattern_kind_t kind;
   arvm_expr_t **capture;
+  arvm_expr_t *match;
   union {
-    struct {
-      size_t capacity;
-      size_t match_count;
-      arvm_expr_t **matches;
-    } slot;
     struct {
       val_pattern_t op;
       patternlist_t args;
+      perm_iter_t perm_it;
     } nary;
     struct {
       val_pattern_t op;
@@ -95,12 +93,6 @@ struct pattern {
 
 #define NARY_FIXED(op, ...) NARY_FIXED_AS(*NULL, op, __VA_ARGS__)
 
-// Matches an n-ary expression only if each argument matches the given pattern
-#define NARY_EACH_AS(capture, op, arg)                                         \
-  (&(pattern_t){EXPR_NARY_EACH, &capture, .nary_each = {op, arg}})
-
-#define NARY_EACH(op, arg) NARY_EACH_AS(*NULL, op, arg)
-
 #define IN_INTERVAL_AS(capture, value)                                         \
   (&(pattern_t){EXPR_IN_INTERVAL, &capture, .in_interval = {value}})
 
@@ -119,5 +111,9 @@ struct pattern {
 #define CONST(...) CONST_AS(*NULL, ##__VA_ARGS__)
 
 bool val_matches(arvm_val_t val, val_pattern_t pattern);
+
+void match_init(pattern_t *pattern);
+
+bool match_next(pattern_t *pattern, arvm_expr_t *expr);
 
 bool matches(arvm_expr_t *expr, pattern_t *pattern);

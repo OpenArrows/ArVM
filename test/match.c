@@ -28,7 +28,7 @@ void test_match_capture(void) {
 
   arvm_expr_t *match;
   TEST_ASSERT(matches(expr, ANY_AS(match)));
-  TEST_ASSERT_EQUAL(match, expr);
+  TEST_ASSERT_EQUAL(expr, match);
 }
 
 void test_match_any(void) {
@@ -38,14 +38,17 @@ void test_match_any(void) {
 }
 
 void test_match_slot(void) {
-  arvm_expr_t *arg1 = make_expr(&arena, UNKNOWN);
-  arvm_expr_t *arg2 = make_expr(&arena, UNKNOWN);
-  arvm_expr_t *arg3 = make_const(&arena, 1);
-  arvm_expr_t *expr = make_nary(&arena, ADD, 3, arg1, arg2, arg3);
+  arvm_expr_t *unk1 = make_expr(&arena, UNKNOWN);
+  arvm_expr_t *unk2 = make_expr(&arena, UNKNOWN);
+  arvm_expr_t *expr = make_nary(
+      &arena, ADD, 3, make_nary(&arena, ADD, 1, make_const(&arena, 1)),
+      make_nary(&arena, ADD, 1, unk1), unk2);
 
   arvm_expr_t *match;
-  TEST_ASSERT(matches(expr, NARY(ANYVAL(), SLOT_AS(match), SLOT())));
-  TEST_ASSERT(match == arg1 || match == arg2);
+  TEST_ASSERT(
+      matches(expr, NARY(ANYVAL(), NARY(VAL(ADD), SLOT_AS(match)), SLOT())));
+
+  TEST_ASSERT(match == unk1 || match == unk2);
 
   TEST_ASSERT_FALSE(
       matches(expr, NARY(ANYVAL(), SLOT_AS(match), SLOT(), SLOT())));
@@ -71,16 +74,6 @@ void test_match_nary_fixed(void) {
   TEST_ASSERT_FALSE(matches(expr, NARY_FIXED(VAL(OR), CONST(VAL(0)))));
   TEST_ASSERT_FALSE(
       matches(expr, NARY_FIXED(VAL(AND), CONST(VAL(0)), CONST(VAL(1)))));
-}
-
-void test_match_nary_each(void) {
-  arvm_expr_t *arg1 = make_const(&arena, 0);
-  arvm_expr_t *arg2 = make_const(&arena, 1);
-  arvm_expr_t *expr = make_nary(&arena, OR, 2, arg1, arg2);
-
-  TEST_ASSERT(matches(expr, NARY_EACH(VAL(OR), CONST(ANYVAL()))));
-  TEST_ASSERT_FALSE(matches(expr, NARY_EACH(VAL(OR), CONST(VAL(0)))));
-  TEST_ASSERT_FALSE(matches(expr, NARY_EACH(VAL(AND), CONST(ANYVAL()))));
 }
 
 void test_match_in_interval(void) {
@@ -118,7 +111,6 @@ int main(void) {
   RUN_TEST(test_match_slot);
   RUN_TEST(test_match_nary);
   RUN_TEST(test_match_nary_fixed);
-  RUN_TEST(test_match_nary_each);
   RUN_TEST(test_match_in_interval);
   RUN_TEST(test_match_arg_ref);
   RUN_TEST(test_match_call);
