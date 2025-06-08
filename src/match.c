@@ -50,7 +50,7 @@ bool match_next(pattern_t *pattern, arvm_expr_t *expr) {
         for (size_t i = 0; i < pattern->nary.args.size; i++)
           if (!match_next(pattern->nary.args.patterns[i],
                           expr->nary.args.exprs[i]))
-            return false;
+            goto nary_match_failure;
         goto nary_matched;
       } else {
         for (size_t i = 0; i < pattern->nary.args.size; i++)
@@ -62,6 +62,7 @@ bool match_next(pattern_t *pattern, arvm_expr_t *expr) {
             match_next(pattern->nary.args.patterns[i],
                        expr->nary.args.exprs[i]);
           }
+      nary_match_failure:
         pattern->nary.perm_it.array = expr->nary.args.exprs;
         pattern->nary.perm_it.length = expr->nary.args.size;
         pattern->nary.perm_it.permutation_length = pattern->nary.args.size;
