@@ -156,6 +156,17 @@ void arvm_optimize(arvm_expr_t *expr, void *ctx_) {
           nary_remove(expr, arg);
         }
       }
+
+      {
+        // Absorption law
+        arvm_expr_t *nary;
+        while (matches(expr, NARY(VAL(OR), NARY_AS(nary, VAL(AND), SLOT()),
+                                  SLOT())) ||
+               matches(expr, NARY(VAL(AND), NARY_AS(nary, VAL(OR), SLOT()),
+                                  SLOT()))) {
+          nary_remove(expr, nary);
+        }
+      }
     } // Boolean laws
 
     { // Call inlining
