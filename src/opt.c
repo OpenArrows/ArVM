@@ -103,6 +103,30 @@ void arvm_optimize(arvm_expr_t *expr, void *ctx_) {
           return;
         }
       }
+
+      {
+        // Merge intervals in logical expressions
+        arvm_expr_t *a, *b;
+        FOR_EACH_MATCH(expr, NARY(VAL(OR, AND), IN_INTERVAL_AS(a, SLOT()),
+                                  IN_INTERVAL_AS(b, SLOT()))) {
+          if (intervals_overlap(a, b)) {
+            nary_remove(expr, b);
+            switch (expr->nary.op) {
+            case OR:
+              a->in_interval.min = imin(a->in_interval.min, b->in_interval.min);
+              a->in_interval.max = imax(a->in_interval.max, b->in_interval.max);
+              break;
+            case AND:
+              a->in_interval.min = imax(a->in_interval.min, b->in_interval.min);
+              a->in_interval.max = imin(a->in_interval.max, b->in_interval.max);
+              break;
+            default:
+              unreachable();
+            }
+            break;
+          }
+        }
+      }
     } // Interval optimizations
 
     { // Boolean laws

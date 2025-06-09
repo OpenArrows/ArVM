@@ -70,6 +70,28 @@ void test_eval_interval() {
   TEST_ASSERT(is_identical(func.value, exp));
 }
 
+void test_merge_intervals() {
+  arvm_func_t func = {make_nary(
+      &arena, OR, 2, make_in_interval(&arena, make_expr(&arena, UNKNOWN), 0, 5),
+      make_in_interval(&arena, make_expr(&arena, UNKNOWN), 3, 10))};
+  arvm_optimize_fn(&func, &arena);
+
+  arvm_expr_t *exp =
+      make_in_interval(&arena, make_expr(&arena, UNKNOWN), 0, 10);
+
+  TEST_ASSERT(is_identical(func.value, exp));
+
+  func = (arvm_func_t){
+      make_nary(&arena, AND, 2,
+                make_in_interval(&arena, make_expr(&arena, UNKNOWN), 0, 5),
+                make_in_interval(&arena, make_expr(&arena, UNKNOWN), 3, 10))};
+  arvm_optimize_fn(&func, &arena);
+
+  exp = make_in_interval(&arena, make_expr(&arena, UNKNOWN), 3, 5);
+
+  TEST_ASSERT(is_identical(func.value, exp));
+}
+
 void test_annulment_law() {
   arvm_func_t func = {make_nary(&arena, AND, 2, make_expr(&arena, UNKNOWN),
                                 make_const(&arena, 0))};
@@ -121,6 +143,7 @@ int main(void) {
   RUN_TEST(test_eval_nary);
   RUN_TEST(test_normalize_interval);
   RUN_TEST(test_eval_interval);
+  RUN_TEST(test_merge_intervals);
   RUN_TEST(test_annulment_law);
   RUN_TEST(test_identity_law);
   RUN_TEST(test_idempotent_law);
