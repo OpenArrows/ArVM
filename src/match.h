@@ -125,3 +125,6 @@ void match_init(pattern_t *pattern);
 bool match_next(pattern_t *pattern, arvm_expr_t *expr);
 
 bool matches(arvm_expr_t *expr, pattern_t *pattern);
+
+#define FOR_EACH_MATCH(expr, pattern)                                          \
+  for (pattern_t *_pattern = pattern; match_next(pattern, expr);)
