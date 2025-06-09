@@ -152,8 +152,7 @@ void arvm_optimize(arvm_expr_t *expr, void *ctx_) {
       {
         // Idempotent law
         arvm_expr_t *arg;
-        while (matches(expr, NARY(VAL(OR), SLOT_AS(arg), SLOT())) ||
-               matches(expr, NARY(VAL(AND), SLOT_AS(arg), SLOT()))) {
+        while (matches(expr, NARY(VAL(OR, AND), SLOT_AS(arg), SLOT()))) {
           nary_remove(expr, arg);
         }
       }
