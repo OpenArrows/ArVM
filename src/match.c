@@ -108,7 +108,10 @@ bool val_matches(arvm_val_t val, val_pattern_t pattern) {
   case VAL_ANY:
     return true;
   case VAL_SPECIFIC:
-    return val == pattern.specific.value;
+    for (size_t i = 0; i < pattern.specific.values.size; i++)
+      if (val == pattern.specific.values.vals[i])
+        return true;
+    return false;
   default:
     unreachable();
   }

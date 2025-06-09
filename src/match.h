@@ -3,22 +3,30 @@
 #include <stdbool.h>
 #include <stddef.h>
 
+typedef struct val_list {
+  size_t size;
+  arvm_val_t *vals;
+} vallist_t;
+
 typedef enum val_pattern_kind { VAL_ANY, VAL_SPECIFIC } val_pattern_kind_t;
 
 typedef struct val_pattern {
   val_pattern_kind_t kind;
   union {
     struct {
-      arvm_val_t value;
+      vallist_t values;
     } specific;
   };
 } val_pattern_t;
 
+#define VAL_LIST(...)                                                          \
+  ((vallist_t){sizeof((arvm_val_t[]){__VA_ARGS__}) / sizeof(arvm_val_t),       \
+               (arvm_val_t[]){__VA_ARGS__}})
+
 #define ANYVAL() ((val_pattern_t){VAL_ANY})
 
-// TODO: #define SLOTVAL() (val_pattern_t) { VAL_SLOT }
-
-#define VAL(val) ((val_pattern_t){VAL_SPECIFIC, .specific = val})
+#define VAL(...)                                                               \
+  ((val_pattern_t){VAL_SPECIFIC, .specific = VAL_LIST(__VA_ARGS__)})
 
 typedef struct pattern pattern_t;
 
