@@ -1,7 +1,6 @@
 #include "analyze.h"
+#include <assert.h>
 #include <string.h>
-
-#include <stdio.h>
 
 bool is_identical(const arvm_expr_t *a, const arvm_expr_t *b) {
   if (a == NULL || b == NULL)
@@ -51,4 +50,10 @@ bool is_identical(const arvm_expr_t *a, const arvm_expr_t *b) {
   default:
     unreachable();
   }
+}
+
+bool intervals_overlap(const arvm_expr_t *a, const arvm_expr_t *b) {
+  assert(a->kind == IN_INTERVAL && b->kind == IN_INTERVAL);
+  return a->in_interval.min <= b->in_interval.max &&
+         b->in_interval.min <= a->in_interval.max;
 }
