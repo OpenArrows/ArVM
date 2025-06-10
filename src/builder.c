@@ -10,6 +10,15 @@ arvm_expr_t *make_expr(arena_t *arena, arvm_expr_kind_t kind) {
   return expr;
 }
 
+arvm_expr_t *make_binary(arena_t *arena, arvm_binary_op_t op, arvm_expr_t *lhs,
+                         arvm_expr_t *rhs) {
+  arvm_expr_t *expr = make_expr(arena, BINARY);
+  expr->binary.op = op;
+  expr->binary.lhs = lhs;
+  expr->binary.rhs = rhs;
+  return expr;
+}
+
 arvm_expr_t *make_nary(arena_t *arena, arvm_nary_op_t op, size_t arg_count,
                        ...) {
   arvm_expr_t *expr = make_expr(arena, NARY);
@@ -70,6 +79,9 @@ void copy_expr(arena_t *arena, const arvm_expr_t *src, arvm_expr_t *dst) {
 
   size_t subexpr_count;
   switch (dst->kind) {
+  case BINARY:
+    subexpr_count = 2;
+    break;
   case NARY:
     subexpr_count = dst->nary.args.size;
     break;
@@ -84,6 +96,10 @@ void copy_expr(arena_t *arena, const arvm_expr_t *src, arvm_expr_t *dst) {
 
   arvm_expr_t *subexprs[subexpr_count];
   switch (dst->kind) {
+  case BINARY:
+    subexprs[0] = dst->binary.lhs;
+    subexprs[1] = dst->binary.rhs;
+    break;
   case NARY:
     memcpy(subexprs, dst->nary.args.exprs, sizeof(subexprs));
     break;
@@ -99,6 +115,13 @@ void copy_expr(arena_t *arena, const arvm_expr_t *src, arvm_expr_t *dst) {
 
   dst->kind = expr.kind;
   switch (expr.kind) {
+  case BINARY:
+    dst->binary.op = expr.nary.op;
+    dst->binary.lhs = create_or_reuse_expr(arena, subexprs, subexpr_count, 0,
+                                           expr.binary.lhs);
+    dst->binary.rhs = create_or_reuse_expr(arena, subexprs, subexpr_count, 1,
+                                           expr.binary.rhs);
+    break;
   case NARY:
     dst->nary.op = expr.nary.op;
     dst->nary.args.size = expr.nary.args.size;

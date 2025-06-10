@@ -10,6 +10,12 @@ void setUp(void) {}
 
 void tearDown(void) {}
 
+void test_eval_binary(void) {
+  arvm_expr_t *binary =
+      make_binary(&arena, MOD, make_const(&arena, 7), make_const(&arena, 4));
+  TEST_ASSERT_EQUAL(3, eval_binary(&binary->binary, ctx));
+}
+
 void test_eval_nary(void) {
   // TODO: test all ops
 
@@ -62,6 +68,7 @@ void test_eval_const(void) {
 
 int main(void) {
   UNITY_BEGIN();
+  RUN_TEST(test_eval_binary);
   RUN_TEST(test_eval_nary);
   RUN_TEST(test_eval_in_interval);
   RUN_TEST(test_eval_call);

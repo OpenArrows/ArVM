@@ -4,6 +4,8 @@ typedef struct eval_context {
   arvm_val_t arg;
 } arvm_ctx_t;
 
+arvm_val_t eval_binary(arvm_binary_expr_t *expr, arvm_ctx_t ctx);
+
 arvm_val_t eval_nary(arvm_nary_expr_t *expr, arvm_ctx_t ctx);
 
 arvm_val_t eval_in_interval(arvm_in_interval_expr_t *expr, arvm_ctx_t ctx);

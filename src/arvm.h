@@ -15,9 +15,18 @@ typedef struct expression_list {
 
 typedef struct function arvm_func_t;
 
+typedef enum binary_op { MOD } arvm_binary_op_t;
+
+// Binary expression, equivalent to non-commutative operations
+typedef struct binary_expr {
+  arvm_binary_op_t op;
+  arvm_expr_t *lhs;
+  arvm_expr_t *rhs;
+} arvm_binary_expr_t;
+
 typedef enum nary_op { OR, AND, XOR, ADD } arvm_nary_op_t;
 
-// Binary expression, equivalent to arithmetic/boolean operations
+// N-ary expression, equivalent to commutative arithmetic/boolean operations
 typedef struct nary_expr {
   arvm_nary_op_t op;
   arvm_exprlist_t args;
@@ -43,6 +52,7 @@ typedef struct const_expr {
 } arvm_const_expr_t;
 
 typedef enum expr_kind {
+  BINARY,
   NARY,
   IN_INTERVAL,
   ARG_REF,
@@ -58,6 +68,7 @@ typedef enum expr_kind {
 struct expression {
   arvm_expr_kind_t kind;
   union {
+    arvm_binary_expr_t binary;
     arvm_nary_expr_t nary;
     arvm_in_interval_expr_t in_interval;
     arvm_call_expr_t call;

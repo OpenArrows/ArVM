@@ -69,6 +69,14 @@ void test_match_slot(void) {
       matches(expr, NARY(ANYVAL(), SLOT_AS(match), SLOT(), SLOT())));
 }
 
+void test_match_binary(void) {
+  arvm_expr_t *lhs = make_const(&arena, 0);
+  arvm_expr_t *rhs = make_const(&arena, 1);
+  arvm_expr_t *expr = make_binary(&arena, MOD, lhs, rhs);
+
+  TEST_ASSERT(matches(expr, BINARY(VAL(MOD), CONST(VAL(0)), CONST(VAL(1)))));
+}
+
 void test_match_nary(void) {
   arvm_expr_t *arg1 = make_const(&arena, 0);
   arvm_expr_t *arg2 = make_const(&arena, 1);
@@ -126,6 +134,7 @@ int main(void) {
   RUN_TEST(test_match_capture);
   RUN_TEST(test_match_any);
   RUN_TEST(test_match_slot);
+  RUN_TEST(test_match_binary);
   RUN_TEST(test_match_nary);
   RUN_TEST(test_match_nary_fixed);
   RUN_TEST(test_match_in_interval);

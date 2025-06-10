@@ -36,6 +36,23 @@ bool match_next(pattern_t *pattern, arvm_expr_t *expr) {
     if (pattern->match)
       return false;
     break;
+  case EXPR_BINARY:
+    if (!(expr->kind == BINARY &&
+          val_matches(expr->binary.op, pattern->binary.op)))
+      return false;
+    if (!pattern->match) {
+      if (!(match_next(pattern->binary.lhs, expr->binary.lhs) &&
+            match_next(pattern->binary.rhs, expr->binary.rhs)))
+        return false;
+    } else {
+      if (!match_next(pattern->binary.lhs, expr->binary.lhs)) {
+        match_init(pattern->binary.lhs);
+        match_next(pattern->binary.lhs, expr->binary.lhs);
+        if (!match_next(pattern->binary.rhs, expr->binary.rhs))
+          return false;
+      }
+    }
+    break;
   case EXPR_NARY_FIXED:
     if (!(expr->kind == NARY &&
           expr->nary.args.size == pattern->nary.args.size))

@@ -1,6 +1,15 @@
 #include "eval.h"
 #include <stddef.h>
 
+arvm_val_t eval_binary(arvm_binary_expr_t *expr, arvm_ctx_t ctx) {
+  switch (expr->op) {
+  case MOD:
+    return eval_expr(expr->lhs, ctx) % eval_expr(expr->rhs, ctx);
+  default:
+    unreachable();
+  }
+}
+
 arvm_val_t eval_nary(arvm_nary_expr_t *expr, arvm_ctx_t ctx) {
   switch (expr->op) {
   case OR: {
@@ -31,6 +40,8 @@ arvm_val_t eval_nary(arvm_nary_expr_t *expr, arvm_ctx_t ctx) {
     }
     return accum;
   }
+  default:
+    unreachable();
   }
 }
 
@@ -47,6 +58,8 @@ arvm_val_t eval_const(arvm_const_expr_t *expr) { return expr->value; }
 
 arvm_val_t eval_expr(arvm_expr_t *expr, arvm_ctx_t ctx) {
   switch (expr->kind) {
+  case BINARY:
+    return eval_binary(&expr->binary, ctx);
   case NARY:
     return eval_nary(&expr->nary, ctx);
   case IN_INTERVAL:

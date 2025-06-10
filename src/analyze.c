@@ -10,6 +10,10 @@ bool is_identical(const arvm_expr_t *a, const arvm_expr_t *b) {
     return false;
 
   switch (a->kind) {
+  case BINARY:
+    return a->binary.op == b->binary.op &&
+           is_identical(a->binary.lhs, b->binary.lhs) &&
+           is_identical(a->binary.rhs, b->binary.rhs);
   case NARY: {
     if (a->nary.op != b->nary.op)
       return false;
@@ -54,6 +58,8 @@ bool is_identical(const arvm_expr_t *a, const arvm_expr_t *b) {
 
 bool has_calls(const arvm_expr_t *expr) {
   switch (expr->kind) {
+  case BINARY:
+    return has_calls(expr->binary.lhs) || has_calls(expr->binary.rhs);
   case NARY:
     for (int i = 0; i < expr->nary.args.size; i++)
       if (has_calls(expr->nary.args.exprs[i]))

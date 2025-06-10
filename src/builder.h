@@ -3,6 +3,9 @@
 
 arvm_expr_t *make_expr(arena_t *arena, arvm_expr_kind_t kind);
 
+arvm_expr_t *make_binary(arena_t *arena, arvm_binary_op_t op, arvm_expr_t *lhs,
+                         arvm_expr_t *rhs);
+
 arvm_expr_t *make_nary(arena_t *arena, arvm_nary_op_t op, size_t arg_count,
                        ...);
 

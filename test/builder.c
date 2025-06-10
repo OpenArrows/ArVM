@@ -9,6 +9,14 @@ void setUp(void) {}
 
 void tearDown(void) { arena_free(&arena); }
 
+void test_make_binary(void) {
+  arvm_expr_t const0 = {CONST, .const_ = {0}};
+  arvm_expr_t const1 = {CONST, .const_ = {1}};
+  arvm_expr_t binary = {BINARY, .binary = {MOD, &const0, &const1}};
+  TEST_ASSERT(
+      is_identical(&binary, make_binary(&arena, MOD, &const0, &const1)));
+}
+
 void test_make_nary(void) {
   arvm_expr_t const0 = {CONST, .const_ = {0}};
   arvm_expr_t const1 = {CONST, .const_ = {1}};
@@ -58,6 +66,7 @@ void test_copy_expr(void) {
 
 int main(void) {
   UNITY_BEGIN();
+  RUN_TEST(test_make_binary);
   RUN_TEST(test_make_nary);
   RUN_TEST(test_make_in_interval);
   RUN_TEST(test_make_arg_ref);

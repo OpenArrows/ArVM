@@ -52,6 +52,7 @@ typedef struct pattern_list {
 typedef enum pattern_kind {
   EXPR_ANY,
   EXPR_SLOT,
+  EXPR_BINARY,
   EXPR_NARY,
   EXPR_NARY_FIXED,
   EXPR_NARY_EACH,
@@ -66,6 +67,11 @@ struct pattern {
   arvm_expr_t **capture;
   arvm_expr_t *match;
   union {
+    struct {
+      val_pattern_t *op;
+      pattern_t *lhs;
+      pattern_t *rhs;
+    } binary;
     struct {
       val_pattern_t *op;
       patternlist_t args;
@@ -103,6 +109,11 @@ struct pattern {
 #define SLOT_AS(capture) (&(pattern_t){EXPR_SLOT, &capture})
 
 #define SLOT() SLOT_AS(*NULL)
+
+#define BINARY_AS(capture, op, lhs, rhs)                                       \
+  (&(pattern_t){EXPR_BINARY, .binary = {op, lhs, rhs}})
+
+#define BINARY(op, lhs, rhs) BINARY_AS(*NULL, op, lhs, rhs)
 
 // Matches an n-ary expression
 #define NARY_AS(capture, op, ...)                                              \
