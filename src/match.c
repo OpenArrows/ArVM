@@ -86,7 +86,9 @@ bool match_next(pattern_t *pattern, arvm_expr_t *expr) {
       return false;
     break;
   case EXPR_CALL:
-    if (!(expr->kind == CALL && match_next(pattern->call.arg, expr->call.arg)))
+    if (!(expr->kind == CALL &&
+          val_matches((arvm_val_t)expr->call.target, pattern->call.target) &&
+          match_next(pattern->call.arg, expr->call.arg)))
       return false;
     break;
   case EXPR_CONST:

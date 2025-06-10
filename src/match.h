@@ -74,6 +74,7 @@ struct pattern {
       val_pattern_t *max;
     } in_interval;
     struct {
+      val_pattern_t *target;
       pattern_t *arg;
     } call;
     struct {
@@ -119,9 +120,9 @@ struct pattern {
 
 #define ARG_REF() ARG_REF_AS(*NULL)
 
-#define CALL_AS(capture, arg) (&(pattern_t){EXPR_CALL, &capture, .call = {arg}})
+#define CALL_AS(capture, target, arg) (&(pattern_t){EXPR_CALL, &capture, .call = {target, arg}})
 
-#define CALL(arg) CALL_AS(*NULL, arg)
+#define CALL(target, arg) CALL_AS(*NULL, target, arg)
 
 #define CONST_AS(capture, value)                                               \
   (&(pattern_t){EXPR_CONST, &capture, .const_ = {value}})

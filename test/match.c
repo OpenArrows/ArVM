@@ -101,7 +101,7 @@ void test_match_call(void) {
   arvm_expr_t *arg = make_expr(&arena, UNKNOWN);
   arvm_expr_t *expr = make_call(&arena, NULL, arg);
 
-  TEST_ASSERT(matches(expr, CALL(ANY())));
+  TEST_ASSERT(matches(expr, CALL(VAL((arvm_val_t)NULL), ANY())));
 }
 
 void test_match_const(void) {

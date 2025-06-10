@@ -201,40 +201,43 @@ void arvm_optimize(arvm_expr_t *expr, void *ctx_) {
       }
     } // Boolean laws
 
-    { // Call inlining
-      if (matches(expr, CALL(ANY()))) {
-        arvm_func_t *func = expr->call.target;
-        if (func == NULL)
-          goto noinline;
-
-        // We don't want to get stuck when inlining recursive functions
-        arvm_opt_ctx_t *context = ctx;
-        while (context) {
-          if (func == context->func)
+    { // Call optimizations
+      {
+        // Call inlining
+        if (matches(expr, CALL(ANYVAL(), ANY()))) {
+          arvm_func_t *func = expr->call.target;
+          if (func == NULL)
             goto noinline;
-          context = context->parent;
+
+          // We don't want to get stuck when inlining recursive functions
+          arvm_opt_ctx_t *context = ctx;
+          while (context) {
+            if (func == context->func)
+              goto noinline;
+            context = context->parent;
+          }
+
+          // Besides just inlining the function, we also need to check that the
+          // argument value is > 0, because functions are only defined for
+          // positive arguments
+          arvm_expr_t *func_val = make_clone(ctx->tmp_arena, func->value);
+          replace(ctx->tmp_arena, func_val, ARG_REF(), expr->call.arg);
+          transpose(ctx->arena,
+                    make_nary(ctx->tmp_arena, AND, 2, func_val,
+                              make_in_interval(
+                                  ctx->tmp_arena,
+                                  make_clone(ctx->tmp_arena, expr->call.arg), 1,
+                                  ARVM_POSITIVE_INFINITY)),
+                    expr);
+
+          visit(expr, arvm_optimize,
+                &(arvm_opt_ctx_t){ctx, ctx->tmp_arena, ctx->arena,
+                                  func}); // TODO: do we need recursion here?
+          return;
         }
-
-        // Besides just inlining the function, we also need to check that the
-        // argument value is > 0, because functions are only defined for
-        // positive arguments
-        arvm_expr_t *func_val = make_clone(ctx->tmp_arena, func->value);
-        replace(ctx->tmp_arena, func_val, ARG_REF(), expr->call.arg);
-        transpose(ctx->arena,
-                  make_nary(ctx->tmp_arena, AND, 2, func_val,
-                            make_in_interval(
-                                ctx->tmp_arena,
-                                make_clone(ctx->tmp_arena, expr->call.arg), 1,
-                                ARVM_POSITIVE_INFINITY)),
-                  expr);
-
-        visit(expr, arvm_optimize,
-              &(arvm_opt_ctx_t){ctx, ctx->tmp_arena, ctx->arena,
-                                func}); // TODO: do we need recursion here?
-        return;
+      noinline:;
       }
-    noinline:;
-    }
+    } // Call optimizations
 
   } while (!is_identical(
       prev, expr)); // Repeat optimizations until no transformation is applied
