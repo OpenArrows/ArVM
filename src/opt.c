@@ -167,6 +167,35 @@ void arvm_optimize(arvm_expr_t *expr, void *ctx_) {
           nary_remove(expr, nary);
         }
       }
+
+      {
+        // Distributive law
+        arvm_expr_t *nary;
+        bool matched = false;
+        while (matches(expr, NARY(VAL(AND), NARY_AS(nary, VAL(OR))))) {
+          matched = true;
+          nary_remove(expr, nary);
+          for (int i = 0; i < nary->nary.args.size; i++) {
+            arvm_expr_t *arg = nary->nary.args.exprs[i];
+
+            arvm_expr_t *new_arg = nary->nary.args.exprs[i] =
+                make_expr(ctx->arena, NARY);
+            new_arg->nary.op = AND;
+            new_arg->nary.args.size = expr->nary.args.size + 1;
+            new_arg->nary.args.exprs = arena_alloc(
+                ctx->arena, sizeof(arvm_expr_t *) * new_arg->nary.args.size);
+            for (int i = 0; i < expr->nary.args.size; i++)
+              new_arg->nary.args.exprs[i] =
+                  make_clone(ctx->arena, expr->nary.args.exprs[i]);
+            new_arg->nary.args.exprs[expr->nary.args.size] = arg;
+          }
+          transpose(ctx->arena, nary, expr);
+        }
+        if (matched) {
+          visit(expr, arvm_optimize, ctx); // TODO: remove recursion if possible
+          return;
+        }
+      }
     } // Boolean laws
 
     { // Call inlining
