@@ -235,6 +235,21 @@ void arvm_optimize(arvm_expr_t *expr, void *ctx_) {
 
   } while (!is_identical(
       prev, expr)); // Repeat optimizations until no transformation is applied
+
+  if (expr->kind == NARY) {
+    // Sort n-ary operands to allow short-circuit evaluation
+    int i = 0, end = expr->nary.args.size - 1;
+    while (i <= end) {
+      arvm_expr_t *arg = expr->nary.args.exprs[i];
+      if (has_calls(arg)) {
+        expr->nary.args.exprs[i] = expr->nary.args.exprs[end];
+        expr->nary.args.exprs[end] = arg;
+        end--;
+      } else {
+        i++;
+      }
+    }
+  }
 }
 
 void arvm_optimize_fn(arvm_func_t *func, arena_t *arena) {

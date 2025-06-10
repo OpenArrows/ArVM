@@ -138,8 +138,8 @@ void test_absorption_law() {
 void test_distributive_law() {
   arvm_func_t func = {make_nary(
       &arena, AND, 2,
-                make_nary(&arena, OR, 2, make_expr(&arena, UNKNOWN),
-                          make_arg_ref(&arena)),
+      make_nary(&arena, OR, 2, make_expr(&arena, UNKNOWN),
+                make_arg_ref(&arena)),
       make_nary(
           &arena, ADD, 2, make_expr(&arena, UNKNOWN),
           make_const(&arena,
@@ -172,6 +172,17 @@ void test_call_inlining() {
   TEST_ASSERT(is_identical(func.value, exp));
 }
 
+void test_short_circuit() {
+  arvm_func_t func = {make_nary(
+      &arena, AND, 2, make_call(&arena, NULL, make_expr(&arena, UNKNOWN)),
+      make_expr(&arena, UNKNOWN))};
+  arvm_optimize_fn(&func, &arena);
+
+  arvm_expr_t *exp = make_call(&arena, NULL, make_expr(&arena, UNKNOWN));
+
+  TEST_ASSERT(is_identical(func.value->nary.args.exprs[1], exp));
+}
+
 int main(void) {
   UNITY_BEGIN();
   RUN_TEST(test_unwrap_nary);
@@ -186,5 +197,6 @@ int main(void) {
   RUN_TEST(test_absorption_law);
   RUN_TEST(test_distributive_law);
   RUN_TEST(test_call_inlining);
+  RUN_TEST(test_short_circuit);
   return UNITY_END();
 }
