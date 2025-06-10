@@ -52,6 +52,27 @@ bool is_identical(const arvm_expr_t *a, const arvm_expr_t *b) {
   }
 }
 
+bool has_calls(const arvm_expr_t *expr) {
+  switch (expr->kind) {
+  case NARY:
+    for (int i = 0; i < expr->nary.args.size; i++)
+      if (has_calls(expr->nary.args.exprs[i]))
+        return true;
+    return false;
+  case IN_INTERVAL:
+    return has_calls(expr->in_interval.value);
+  case CALL:
+    return true;
+  case CONST:
+  case ARG_REF:
+  case NONE:
+  case UNKNOWN:
+    return false;
+  default:
+    unreachable();
+  }
+}
+
 bool intervals_overlap(const arvm_expr_t *a, const arvm_expr_t *b) {
   assert(a->kind == IN_INTERVAL && b->kind == IN_INTERVAL);
   return a->in_interval.min <= b->in_interval.max &&
