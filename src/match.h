@@ -11,7 +11,8 @@ typedef struct val_list {
 typedef enum val_pattern_kind {
   VAL_ANY,
   VAL_SLOT,
-  VAL_SPECIFIC
+  VAL_SPECIFIC,
+  VAL_RANGE
 } val_pattern_kind_t;
 
 typedef struct val_pattern {
@@ -21,6 +22,10 @@ typedef struct val_pattern {
     struct {
       vallist_t values;
     } specific;
+    struct {
+      arvm_val_t min;
+      arvm_val_t max;
+    } range;
   };
 } val_pattern_t;
 
@@ -34,6 +39,8 @@ typedef struct val_pattern {
 
 #define VAL(...)                                                               \
   (&(val_pattern_t){VAL_SPECIFIC, .specific = VAL_LIST(__VA_ARGS__)})
+
+#define RANGEVAL(min, max) (&(val_pattern_t){VAL_RANGE, .range = {min, max}})
 
 typedef struct pattern pattern_t;
 
@@ -120,7 +127,8 @@ struct pattern {
 
 #define ARG_REF() ARG_REF_AS(*NULL)
 
-#define CALL_AS(capture, target, arg) (&(pattern_t){EXPR_CALL, &capture, .call = {target, arg}})
+#define CALL_AS(capture, target, arg)                                          \
+  (&(pattern_t){EXPR_CALL, &capture, .call = {target, arg}})
 
 #define CALL(target, arg) CALL_AS(*NULL, target, arg)
 

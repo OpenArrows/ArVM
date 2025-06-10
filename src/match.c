@@ -117,6 +117,10 @@ bool val_matches(arvm_val_t val, val_pattern_t *pattern) {
       if (val == pattern->specific.values.vals[i])
         goto matched;
     return false;
+  case VAL_RANGE:
+    if (!(val >= pattern->range.min && val <= pattern->range.max))
+      return false;
+    break;
   default:
     unreachable();
   }

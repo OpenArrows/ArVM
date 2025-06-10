@@ -31,6 +31,13 @@ void test_match_val(void) {
   TEST_ASSERT_FALSE(val_matches(val, VAL(124)));
 }
 
+void test_match_rangeval(void) {
+  arvm_val_t val = 123;
+
+  TEST_ASSERT(val_matches(val, RANGEVAL(120, 125)));
+  TEST_ASSERT_FALSE(val_matches(val, RANGEVAL(130, 135)));
+}
+
 void test_match_capture(void) {
   arvm_expr_t *expr = make_expr(&arena, UNKNOWN);
 
@@ -115,6 +122,7 @@ int main(void) {
   RUN_TEST(test_match_anyval);
   RUN_TEST(test_match_slotval);
   RUN_TEST(test_match_val);
+  RUN_TEST(test_match_rangeval);
   RUN_TEST(test_match_capture);
   RUN_TEST(test_match_any);
   RUN_TEST(test_match_slot);
