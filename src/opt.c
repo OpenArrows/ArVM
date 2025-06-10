@@ -82,7 +82,8 @@ void arvm_optimize(arvm_expr_t *expr, void *ctx_) {
         // Interval normalization (move const to RHS)
         arvm_expr_t *nary, *const_;
         if (matches(expr, IN_INTERVAL(NARY_AS(nary, VAL(ADD),
-                                              CONST_AS(const_, ANYVAL()))))) {
+                                              CONST_AS(const_, ANYVAL())),
+                                      ANYVAL(), ANYVAL()))) {
           nary_remove(nary, const_);
           visit(nary, arvm_optimize, ctx);
           expr->in_interval.min =
@@ -94,7 +95,7 @@ void arvm_optimize(arvm_expr_t *expr, void *ctx_) {
 
       {
         // Compile-time interval evaluation
-        if (matches(expr, IN_INTERVAL(CONST(ANYVAL())))) {
+        if (matches(expr, IN_INTERVAL(CONST(ANYVAL()), ANYVAL(), ANYVAL()))) {
           transpose(
               ctx->arena,
               make_const(ctx->tmp_arena,
@@ -107,8 +108,10 @@ void arvm_optimize(arvm_expr_t *expr, void *ctx_) {
       {
         // Merge intervals in logical expressions
         arvm_expr_t *a, *b;
-        FOR_EACH_MATCH(expr, NARY(VAL(OR, AND), IN_INTERVAL_AS(a, SLOT()),
-                                  IN_INTERVAL_AS(b, SLOT()))) {
+        FOR_EACH_MATCH(expr,
+                       NARY(VAL(OR, AND),
+                            IN_INTERVAL_AS(a, SLOT(), ANYVAL(), ANYVAL()),
+                            IN_INTERVAL_AS(b, SLOT(), ANYVAL(), ANYVAL()))) {
           if (intervals_overlap(a, b)) {
             nary_remove(expr, b);
             switch (expr->nary.op) {

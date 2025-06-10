@@ -8,10 +8,15 @@ typedef struct val_list {
   arvm_val_t *vals;
 } vallist_t;
 
-typedef enum val_pattern_kind { VAL_ANY, VAL_SPECIFIC } val_pattern_kind_t;
+typedef enum val_pattern_kind {
+  VAL_ANY,
+  VAL_SLOT,
+  VAL_SPECIFIC
+} val_pattern_kind_t;
 
 typedef struct val_pattern {
   val_pattern_kind_t kind;
+  arvm_val_t match;
   union {
     struct {
       vallist_t values;
@@ -23,10 +28,12 @@ typedef struct val_pattern {
   ((vallist_t){sizeof((arvm_val_t[]){__VA_ARGS__}) / sizeof(arvm_val_t),       \
                (arvm_val_t[]){__VA_ARGS__}})
 
-#define ANYVAL() ((val_pattern_t){VAL_ANY})
+#define ANYVAL() (&(val_pattern_t){VAL_ANY})
+
+#define SLOTVAL() (&(val_pattern_t){VAL_SLOT})
 
 #define VAL(...)                                                               \
-  ((val_pattern_t){VAL_SPECIFIC, .specific = VAL_LIST(__VA_ARGS__)})
+  (&(val_pattern_t){VAL_SPECIFIC, .specific = VAL_LIST(__VA_ARGS__)})
 
 typedef struct pattern pattern_t;
 
@@ -53,22 +60,24 @@ struct pattern {
   arvm_expr_t *match;
   union {
     struct {
-      val_pattern_t op;
+      val_pattern_t *op;
       patternlist_t args;
       perm_iter_t perm_it;
     } nary;
     struct {
-      val_pattern_t op;
+      val_pattern_t *op;
       pattern_t *arg;
     } nary_each;
     struct {
       pattern_t *value;
+      val_pattern_t *min;
+      val_pattern_t *max;
     } in_interval;
     struct {
       pattern_t *arg;
     } call;
     struct {
-      val_pattern_t value;
+      val_pattern_t *value;
     } const_;
   };
 };
@@ -101,10 +110,10 @@ struct pattern {
 
 #define NARY_FIXED(op, ...) NARY_FIXED_AS(*NULL, op, __VA_ARGS__)
 
-#define IN_INTERVAL_AS(capture, value)                                         \
-  (&(pattern_t){EXPR_IN_INTERVAL, &capture, .in_interval = {value}})
+#define IN_INTERVAL_AS(capture, value, min, max)                               \
+  (&(pattern_t){EXPR_IN_INTERVAL, &capture, .in_interval = {value, min, max}})
 
-#define IN_INTERVAL(value) IN_INTERVAL_AS(*NULL, value)
+#define IN_INTERVAL(value, min, max) IN_INTERVAL_AS(*NULL, value, min, max)
 
 #define ARG_REF_AS(capture) (&(pattern_t){EXPR_ARG_REF, &capture})
 
@@ -118,7 +127,7 @@ struct pattern {
   (&(pattern_t){EXPR_CONST, &capture, .const_ = {value}})
 #define CONST(...) CONST_AS(*NULL, ##__VA_ARGS__)
 
-bool val_matches(arvm_val_t val, val_pattern_t pattern);
+bool val_matches(arvm_val_t val, val_pattern_t *pattern);
 
 void match_init(pattern_t *pattern);
 

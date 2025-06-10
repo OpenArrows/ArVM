@@ -16,6 +16,14 @@ void test_match_anyval(void) {
   TEST_ASSERT(val_matches(val, ANYVAL()));
 }
 
+void test_match_slotval(void) {
+  arvm_expr_t *expr = make_nary(&arena, ADD, 3, make_const(&arena, 1),
+                                make_const(&arena, 1), make_const(&arena, 2));
+
+  TEST_ASSERT(
+      matches(expr, NARY(ANYVAL(), CONST(SLOTVAL()), CONST(SLOTVAL()))));
+}
+
 void test_match_val(void) {
   arvm_val_t val = 123;
 
@@ -80,7 +88,7 @@ void test_match_in_interval(void) {
   arvm_expr_t *value = make_expr(&arena, UNKNOWN);
   arvm_expr_t *expr = make_in_interval(&arena, value, -10, 10);
 
-  TEST_ASSERT(matches(expr, IN_INTERVAL(ANY())));
+  TEST_ASSERT(matches(expr, IN_INTERVAL(ANY(), VAL(-10), VAL(10))));
 }
 
 void test_match_arg_ref(void) {
@@ -105,6 +113,7 @@ void test_match_const(void) {
 int main(void) {
   UNITY_BEGIN();
   RUN_TEST(test_match_anyval);
+  RUN_TEST(test_match_slotval);
   RUN_TEST(test_match_val);
   RUN_TEST(test_match_capture);
   RUN_TEST(test_match_any);
