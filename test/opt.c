@@ -136,12 +136,14 @@ void test_absorption_law() {
 }
 
 void test_distributive_law() {
-  arvm_func_t func = {
-      make_nary(&arena, AND, 2,
+  arvm_func_t func = {make_nary(
+      &arena, AND, 2,
                 make_nary(&arena, OR, 2, make_expr(&arena, UNKNOWN),
                           make_arg_ref(&arena)),
-                make_nary(&arena, ADD, 2, make_expr(&arena, UNKNOWN),
-                          make_const(&arena, 1)))}; // TODO: maybe add a way to create distinct UNKNOWNs
+      make_nary(
+          &arena, ADD, 2, make_expr(&arena, UNKNOWN),
+          make_const(&arena,
+                     1)))}; // TODO: maybe add a way to create distinct UNKNOWNs
   arvm_optimize_fn(&func, &arena);
 
   arvm_expr_t *exp =
