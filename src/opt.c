@@ -200,21 +200,22 @@ void arvm_optimize(arvm_expr_t *expr, void *ctx_) {
 
     { // Call inlining
       if (matches(expr, CALL(ANY()))) {
+        arvm_func_t *func = expr->call.target;
+        if (func == NULL)
+          goto noinline;
+
         // We don't want to get stuck when inlining recursive functions
         arvm_opt_ctx_t *context = ctx;
         while (context) {
-          if (expr->call.target == context->func)
+          if (func == context->func)
             goto noinline;
           context = context->parent;
         }
 
-        arvm_func_t *func = expr->call.target;
-
         // Besides just inlining the function, we also need to check that the
         // argument value is > 0, because functions are only defined for
         // positive arguments
-        arvm_expr_t *func_val =
-            make_clone(ctx->tmp_arena, expr->call.target->value);
+        arvm_expr_t *func_val = make_clone(ctx->tmp_arena, func->value);
         replace(ctx->tmp_arena, func_val, ARG_REF(), expr->call.arg);
         transpose(ctx->arena,
                   make_nary(ctx->tmp_arena, AND, 2, func_val,
