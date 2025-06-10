@@ -10,7 +10,7 @@ void setUp(void) {}
 
 void tearDown(void) { arena_free(&arena); }
 
-void test_unwrap_nary() {
+void test_unwrap_nary(void) {
   arvm_func_t func = {make_nary(&arena, OR, 1, make_expr(&arena, UNKNOWN))};
   arvm_optimize_fn(&func, &arena);
 
@@ -19,7 +19,7 @@ void test_unwrap_nary() {
   TEST_ASSERT(is_identical(func.value, exp));
 }
 
-void test_fold_nary() {
+void test_fold_nary(void) {
   arvm_func_t func = {make_nary(
       &arena, ADD, 3,
       make_nary(&arena, ADD, 2, make_expr(&arena, UNKNOWN),
@@ -37,7 +37,7 @@ void test_fold_nary() {
   TEST_ASSERT(is_identical(func.value, exp));
 }
 
-void test_eval_nary() {
+void test_eval_nary(void) {
   arvm_func_t func = {make_nary(&arena, ADD, 3, make_const(&arena, 1),
                                 make_const(&arena, 2), make_const(&arena, 3))};
   arvm_optimize_fn(&func, &arena);
@@ -47,7 +47,7 @@ void test_eval_nary() {
   TEST_ASSERT(is_identical(func.value, exp));
 }
 
-void test_normalize_interval() {
+void test_normalize_interval(void) {
   arvm_func_t func = {
       make_in_interval(&arena,
                        make_nary(&arena, ADD, 2, make_expr(&arena, UNKNOWN),
@@ -61,7 +61,7 @@ void test_normalize_interval() {
   TEST_ASSERT(is_identical(func.value, exp));
 }
 
-void test_eval_interval() {
+void test_eval_interval(void) {
   arvm_func_t func = {make_in_interval(&arena, make_const(&arena, 1), 0, 3)};
   arvm_optimize_fn(&func, &arena);
 
@@ -70,7 +70,7 @@ void test_eval_interval() {
   TEST_ASSERT(is_identical(func.value, exp));
 }
 
-void test_merge_intervals() {
+void test_merge_intervals(void) {
   arvm_func_t func = {make_nary(
       &arena, OR, 2, make_in_interval(&arena, make_expr(&arena, UNKNOWN), 0, 5),
       make_in_interval(&arena, make_expr(&arena, UNKNOWN), 3, 10))};
@@ -92,7 +92,7 @@ void test_merge_intervals() {
   TEST_ASSERT(is_identical(func.value, exp));
 }
 
-void test_annulment_law() {
+void test_annulment_law(void) {
   arvm_func_t func = {make_nary(&arena, AND, 2, make_expr(&arena, UNKNOWN),
                                 make_const(&arena, 0))};
   arvm_optimize_fn(&func, &arena);
@@ -102,7 +102,7 @@ void test_annulment_law() {
   TEST_ASSERT(is_identical(func.value, exp));
 }
 
-void test_identity_law() {
+void test_identity_law(void) {
   arvm_func_t func = {make_nary(&arena, OR, 2, make_expr(&arena, UNKNOWN),
                                 make_const(&arena, 0))};
   arvm_optimize_fn(&func, &arena);
@@ -112,7 +112,7 @@ void test_identity_law() {
   TEST_ASSERT(is_identical(func.value, exp));
 }
 
-void test_idempotent_law() {
+void test_idempotent_law(void) {
   arvm_func_t func = {make_nary(&arena, AND, 2, make_expr(&arena, UNKNOWN),
                                 make_expr(&arena, UNKNOWN))};
   arvm_optimize_fn(&func, &arena);
@@ -122,7 +122,7 @@ void test_idempotent_law() {
   TEST_ASSERT(is_identical(func.value, exp));
 }
 
-void test_absorption_law() {
+void test_absorption_law(void) {
   arvm_func_t func = {
       make_nary(&arena, AND, 2,
                 make_nary(&arena, OR, 2, make_expr(&arena, UNKNOWN),
@@ -135,7 +135,7 @@ void test_absorption_law() {
   TEST_ASSERT(is_identical(func.value, exp));
 }
 
-void test_distributive_law() {
+void test_distributive_law(void) {
   arvm_func_t func = {make_nary(
       &arena, AND, 2,
       make_nary(&arena, OR, 2, make_expr(&arena, UNKNOWN),
@@ -158,7 +158,7 @@ void test_distributive_law() {
   TEST_ASSERT(is_identical(func.value, exp));
 }
 
-void test_call_inlining() {
+void test_call_inlining(void) {
   arvm_func_t callee = {make_arg_ref(&arena)};
 
   arvm_func_t func = {make_call(&arena, &callee, make_expr(&arena, UNKNOWN))};
@@ -172,7 +172,7 @@ void test_call_inlining() {
   TEST_ASSERT(is_identical(func.value, exp));
 }
 
-void test_short_circuit() {
+void test_short_circuit(void) {
   arvm_func_t func = {make_nary(
       &arena, AND, 2, make_call(&arena, NULL, make_expr(&arena, UNKNOWN)),
       make_expr(&arena, UNKNOWN))};
