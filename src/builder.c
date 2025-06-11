@@ -113,7 +113,7 @@ void copy_expr(arena_t *arena, const arvm_expr_t *src, arvm_expr_t *dst) {
   dst->kind = src->kind;
   switch (src->kind) {
   case BINARY:
-    dst->binary.op = src->nary.op;
+    dst->binary.op = src->binary.op;
     dst->binary.lhs = create_or_reuse_expr(arena, subexprs, subexpr_count, 0,
                                            src->binary.lhs);
     dst->binary.rhs = create_or_reuse_expr(arena, subexprs, subexpr_count, 1,
