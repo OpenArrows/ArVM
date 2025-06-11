@@ -111,24 +111,29 @@ void arvm_optimize(arvm_expr_t *expr, void *ctx_) {
         FOR_EACH_MATCH(expr,
                        NARY(VAL(OR, AND),
                             IN_INTERVAL_AS(a, SLOT(), ANYVAL(), ANYVAL()),
-                            IN_INTERVAL_AS(b, SLOT(), ANYVAL(), ANYVAL()))) {
-          if (intervals_overlap(a, b)) {
-            nary_remove(expr, b);
-            switch (expr->nary.op) {
-            case OR:
-              a->in_interval.min = imin(a->in_interval.min, b->in_interval.min);
-              a->in_interval.max = imax(a->in_interval.max, b->in_interval.max);
-              break;
-            case AND:
-              a->in_interval.min = imax(a->in_interval.min, b->in_interval.min);
-              a->in_interval.max = imin(a->in_interval.max, b->in_interval.max);
-              break;
-            default:
-              unreachable();
-            }
-            break;
-          }
-        }
+                            IN_INTERVAL_AS(b, SLOT(), ANYVAL(), ANYVAL())),
+                       {
+                         if (intervals_overlap(a, b)) {
+                           nary_remove(expr, b);
+                           switch (expr->nary.op) {
+                           case OR:
+                             a->in_interval.min =
+                                 imin(a->in_interval.min, b->in_interval.min);
+                             a->in_interval.max =
+                                 imax(a->in_interval.max, b->in_interval.max);
+                             break;
+                           case AND:
+                             a->in_interval.min =
+                                 imax(a->in_interval.min, b->in_interval.min);
+                             a->in_interval.max =
+                                 imin(a->in_interval.max, b->in_interval.max);
+                             break;
+                           default:
+                             unreachable();
+                           }
+                           break;
+                         }
+                       });
       }
     } // Interval optimizations
 

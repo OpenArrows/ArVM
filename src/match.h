@@ -153,7 +153,40 @@ void match_init(pattern_t *pattern);
 
 bool match_next(pattern_t *pattern, arvm_expr_t *expr);
 
+void find_slots(pattern_t *pattern, pattern_t **slots, size_t *slot_count,
+                val_pattern_t **val_slots, size_t *val_slot_count);
+
 bool matches(arvm_expr_t *expr, pattern_t *pattern);
 
-#define FOR_EACH_MATCH(expr, pattern)                                          \
-  for (pattern_t *_pattern = pattern; match_next(pattern, expr);)
+#define FOR_EACH_MATCH(expr, pattern, block)                                   \
+  do {                                                                         \
+    pattern_t *_pattern = pattern;                                             \
+    match_init(_pattern);                                                      \
+                                                                               \
+    size_t slot_count = 0, val_slot_count = 0;                                 \
+    find_slots(_pattern, NULL, &slot_count, NULL, &val_slot_count);            \
+                                                                               \
+    pattern_t *slots[slot_count];                                              \
+    val_pattern_t *val_slots[val_slot_count];                                  \
+    find_slots(_pattern, slots, NULL, val_slots, NULL);                        \
+                                                                               \
+    while (match_next(_pattern, expr)) {                                       \
+      if (slot_count > 0) {                                                    \
+        arvm_expr_t *match = slots[0]->match;                                  \
+        for (size_t i = 0; i < slot_count; i++)                                \
+          if (!is_identical(match, slots[i]->match))                           \
+            goto _skip;                                                        \
+      }                                                                        \
+                                                                               \
+      if (val_slot_count > 0) {                                                \
+        arvm_val_t val_match = val_slots[0]->match;                            \
+        for (size_t i = 0; i < val_slot_count; i++)                            \
+          if (val_slots[i]->match != val_match)                                \
+            goto _skip;                                                        \
+      }                                                                        \
+                                                                               \
+      {block};                                                                 \
+                                                                               \
+    _skip:;                                                                    \
+    }                                                                          \
+  } while (0);
