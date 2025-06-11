@@ -99,6 +99,8 @@ bool match_next(pattern_t *pattern, arvm_expr_t *expr) {
       return false;
     break;
   case EXPR_ARG_REF:
+    if (pattern->match)
+      return false;
     if (expr->kind != ARG_REF)
       return false;
     break;
