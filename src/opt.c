@@ -242,6 +242,33 @@ void arvm_optimize(arvm_expr_t *expr, void *ctx_) {
         }
       noinline:;
       }
+
+      {
+        // Constant-step recursion optimization
+        arvm_expr_t *base, *call_nary, *step, *condition;
+        if (matches(
+                expr,
+                NARY_FIXED(
+                    VAL(OR),
+                    IN_INTERVAL_AS(base, ARG_REF(), SLOTVAL(), SLOTVAL()),
+                    NARY_FIXED_AS(
+                        call_nary, VAL(AND),
+                        CALL(VAL((arvm_val_t)ctx->func),
+                             NARY_FIXED(
+                                 VAL(ADD), ARG_REF(),
+                                 CONST_AS(step, RANGEVAL(ARVM_NEGATIVE_INFINITY,
+                                                         -1)))),
+                        IN_INTERVAL_AS(condition, ARG_REF(), SLOTVAL(),
+                                       VAL(ARVM_POSITIVE_INFINITY)))))) {
+          expr->nary.op = AND;
+          base->in_interval.value =
+              make_binary(ctx->arena, MOD, base->in_interval.value,
+                          make_const(ctx->arena, -step->const_.value));
+          base->in_interval.min = base->in_interval.max =
+              base->in_interval.min % -step->const_.value;
+          transpose(ctx->arena, condition, call_nary);
+        }
+      }
     } // Call optimizations
 
   } while (!is_identical(

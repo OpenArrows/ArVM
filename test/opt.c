@@ -172,6 +172,28 @@ void test_call_inlining(void) {
   TEST_ASSERT(is_identical(func.value, exp));
 }
 
+void test_const_step_recursion(void) {
+  arvm_func_t func = {make_nary(
+      &arena, OR, 2, make_in_interval(&arena, make_arg_ref(&arena), 1, 1),
+      make_nary(&arena, AND, 2,
+                make_call(&arena, &func,
+                          make_nary(&arena, ADD, 2, make_arg_ref(&arena),
+                                    make_const(&arena, -2))),
+                make_in_interval(&arena, make_arg_ref(&arena), 1,
+                                 ARVM_POSITIVE_INFINITY)))};
+  arvm_optimize_fn(&func, &arena);
+
+  arvm_expr_t *exp = make_nary(
+      &arena, AND, 2,
+      make_in_interval(&arena, make_arg_ref(&arena), 1, ARVM_POSITIVE_INFINITY),
+      make_in_interval(
+          &arena,
+          make_binary(&arena, MOD, make_arg_ref(&arena), make_const(&arena, 2)),
+          1, 1));
+
+  TEST_ASSERT(is_identical(func.value, exp));
+}
+
 void test_short_circuit(void) {
   arvm_func_t func = {make_nary(
       &arena, AND, 2, make_call(&arena, NULL, make_expr(&arena, UNKNOWN)),
@@ -197,6 +219,7 @@ int main(void) {
   RUN_TEST(test_absorption_law);
   RUN_TEST(test_distributive_law);
   RUN_TEST(test_call_inlining);
+  RUN_TEST(test_const_step_recursion);
   RUN_TEST(test_short_circuit);
   return UNITY_END();
 }
