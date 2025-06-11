@@ -74,9 +74,6 @@ static arvm_expr_t *create_or_reuse_expr(arena_t *arena,
 }
 
 void copy_expr(arena_t *arena, const arvm_expr_t *src, arvm_expr_t *dst) {
-  arvm_expr_t expr;
-  memcpy(&expr, src, sizeof(expr));
-
   size_t subexpr_count;
   switch (dst->kind) {
   case BINARY:
@@ -113,39 +110,39 @@ void copy_expr(arena_t *arena, const arvm_expr_t *src, arvm_expr_t *dst) {
     break;
   }
 
-  dst->kind = expr.kind;
-  switch (expr.kind) {
+  dst->kind = src->kind;
+  switch (src->kind) {
   case BINARY:
-    dst->binary.op = expr.binary.op;
+    dst->binary.op = src->nary.op;
     dst->binary.lhs = create_or_reuse_expr(arena, subexprs, subexpr_count, 0,
-                                           expr.binary.lhs);
+                                           src->binary.lhs);
     dst->binary.rhs = create_or_reuse_expr(arena, subexprs, subexpr_count, 1,
-                                           expr.binary.rhs);
+                                           src->binary.rhs);
     break;
   case NARY:
-    dst->nary.op = expr.nary.op;
-    dst->nary.args.size = expr.nary.args.size;
+    dst->nary.op = src->nary.op;
+    dst->nary.args.size = src->nary.args.size;
     dst->nary.args.exprs =
         arena_alloc(arena, sizeof(arvm_expr_t *) *
-                               expr.nary.args.size); // TODO: reuse memory
-    for (int i = 0; i < expr.nary.args.size; i++) {
+                               src->nary.args.size); // TODO: reuse memory
+    for (int i = 0; i < src->nary.args.size; i++) {
       dst->nary.args.exprs[i] = create_or_reuse_expr(
-          arena, subexprs, subexpr_count, i, expr.nary.args.exprs[i]);
+          arena, subexprs, subexpr_count, i, src->nary.args.exprs[i]);
     }
     break;
   case IN_INTERVAL:
     dst->in_interval.value = create_or_reuse_expr(
-        arena, subexprs, subexpr_count, 0, expr.in_interval.value);
-    dst->in_interval.min = expr.in_interval.min;
-    dst->in_interval.max = expr.in_interval.max;
+        arena, subexprs, subexpr_count, 0, src->in_interval.value);
+    dst->in_interval.min = src->in_interval.min;
+    dst->in_interval.max = src->in_interval.max;
     break;
   case CALL:
-    dst->call.target = expr.call.target;
+    dst->call.target = src->call.target;
     dst->call.arg =
-        create_or_reuse_expr(arena, subexprs, subexpr_count, 0, expr.call.arg);
+        create_or_reuse_expr(arena, subexprs, subexpr_count, 0, src->call.arg);
     break;
   case CONST:
-    dst->const_.value = expr.const_.value;
+    dst->const_.value = src->const_.value;
     break;
   case ARG_REF:
   case NONE:

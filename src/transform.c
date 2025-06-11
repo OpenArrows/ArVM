@@ -3,6 +3,8 @@
 #include "visit.h"
 #include <string.h>
 
+#define TRANSFORM_ARENA_BLOCK_SIZE 16
+
 typedef struct replace_ctx {
   arena_t *arena;
   pattern_t *what;
@@ -10,7 +12,10 @@ typedef struct replace_ctx {
 } replace_ctx_t;
 
 void transpose(arena_t *arena, const arvm_expr_t *what, arvm_expr_t *where) {
-  copy_expr(arena, what, where);
+  arena_t temp_arena = {sizeof(arvm_expr_t) * TRANSFORM_ARENA_BLOCK_SIZE};
+  arvm_expr_t *what_copy = make_clone(&temp_arena, what);
+  copy_expr(arena, what_copy, where);
+  arena_free(&temp_arena);
 }
 
 void nary_remove(arvm_expr_t *nary, arvm_expr_t *arg) {
