@@ -152,40 +152,35 @@ static void find_val_slots(val_pattern_t *pattern, val_pattern_t **val_slots,
                            size_t *val_slot_count) {
   if (pattern->kind == VAL_SLOT) {
     if (val_slots)
-      *val_slots = pattern;
+      val_slots[*val_slot_count] = pattern;
     if (val_slot_count)
       (*val_slot_count)++;
   }
 }
 
-static void find_slots(pattern_t *pattern, pattern_t **slots,
-                       size_t *slot_count, val_pattern_t **val_slots,
-                       size_t *val_slot_count) {
+void find_slots(pattern_t *pattern, pattern_t **slots, size_t *slot_count,
+                val_pattern_t **val_slots, size_t *val_slot_count) {
+  if (slot_count == NULL) {
+    size_t i = 0;
+    slot_count = &i;
+  }
+  if (val_slot_count == NULL) {
+    size_t i = 0;
+    val_slot_count = &i;
+  }
   switch (pattern->kind) {
   case EXPR_SLOT:
     if (slots)
-      *slots = pattern;
-    if (slot_count)
-      (*slot_count)++;
+      slots[*slot_count] = pattern;
+    (*slot_count)++;
     break;
   case EXPR_NARY:
-  case EXPR_NARY_FIXED: {
+  case EXPR_NARY_FIXED:
     for (size_t i = 0; i < pattern->nary.args.size; i++) {
       pattern_t *arg_pattern = pattern->nary.args.patterns[i];
-      size_t arg_slot_count = 0, arg_val_slot_count = 0;
-      find_slots(arg_pattern, slots, &arg_slot_count, val_slots,
-                 &arg_val_slot_count);
-      if (slots)
-        slots += arg_slot_count;
-      if (slot_count)
-        *slot_count += arg_slot_count;
-      if (val_slots)
-        val_slots += arg_val_slot_count;
-      if (val_slot_count)
-        *val_slot_count += arg_val_slot_count;
+      find_slots(arg_pattern, slots, slot_count, val_slots, val_slot_count);
     }
     break;
-  }
   case EXPR_IN_INTERVAL:
     find_slots(pattern->in_interval.value, slots, slot_count, val_slots,
                val_slot_count);
@@ -216,15 +211,19 @@ bool matches(arvm_expr_t *expr, pattern_t *pattern) {
   find_slots(pattern, slots, NULL, val_slots, NULL);
 
   while (match_next(pattern, expr)) {
-    arvm_expr_t *match = slots[0]->match;
-    for (size_t i = 0; i < slot_count; i++)
-      if (!is_identical(match, slots[i]->match))
-        goto skip;
+    if (slot_count > 0) {
+      arvm_expr_t *match = slots[0]->match;
+      for (size_t i = 0; i < slot_count; i++)
+        if (!is_identical(match, slots[i]->match))
+          goto skip;
+    }
 
-    arvm_val_t val_match = val_slots[0]->match;
-    for (size_t i = 0; i < val_slot_count; i++)
-      if (val_slots[i]->match != val_match)
-        goto skip;
+    if (val_slot_count > 0) {
+      arvm_val_t val_match = val_slots[0]->match;
+      for (size_t i = 0; i < val_slot_count; i++)
+        if (val_slots[i]->match != val_match)
+          goto skip;
+    }
 
     return true;
   skip:;
