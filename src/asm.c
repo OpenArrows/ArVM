@@ -217,12 +217,13 @@ void asm_add(asm_t *asm_) {
   switch (op2.type) {
 #if ARVM_JIT_ARCH == ARVM_JIT_ARCH_X86_64
   case ARG:
-    // ADD r/m16/32/64, r16/32/64
+    // ADD r/m16/32/64, RCX
     asm_x86_emit_rex(asm_, true, false, result.reg >= R8, false);
     asm_x86_emit_opcode(asm_, 0x01);
     asm_x86_emit_modrm(asm_, 0b11, RCX, result.reg);
     break;
   case REG:
+    // ADD r/m16/32/64, r16/32/64
     asm_x86_emit_rex(asm_, true, op2.reg >= R8, result.reg >= R8, false);
     asm_x86_emit_opcode(asm_, 0x01);
     asm_x86_emit_modrm(asm_, 0b11, op2.reg, result.reg);
@@ -259,6 +260,190 @@ void asm_add(asm_t *asm_) {
       // ADD r/m16/32, imm16/32
       asm_x86_asm_x86_emit_opcode(asm_, 0x81);
       asm_x86_emit_modrm(asm_, 0b11, 0, result.reg);
+      asm_x86_emit_imm32(asm_, op2.imm);
+    }
+    break;
+#endif
+  default:
+    unreachable();
+  }
+#else
+  unreachable();
+#endif
+}
+
+void asm_or(asm_t *asm_) {
+  asm_operand_t op2 = asm_pop_op(asm_);
+  asm_operand_t op1 = asm_pop_op(asm_);
+  asm_free_op(asm_, op1);
+  asm_free_op(asm_, op2);
+
+  if (op1.type == IMM && op2.type == IMM) {
+    asm_push_op(asm_, (asm_operand_t){IMM, .imm = op1.imm || op2.imm});
+    return;
+  }
+
+  if (op2.type == REG && op1.type != REG) {
+    asm_operand_t tmp = op2;
+    op2 = op1;
+    op1 = tmp;
+  }
+
+#if ARVM_JIT_ARCH == ARVM_JIT_ARCH_X86 || ARVM_JIT_ARCH == ARVM_JIT_ARCH_X86_64
+  if ((op2.type == IMM && op2.imm >> 32 != 0) ||
+      (op1.type == IMM && op1.imm >> 8 == 0)) {
+    asm_operand_t tmp = op2;
+    op2 = op1;
+    op1 = tmp;
+  }
+#endif
+
+  asm_operand_t result = op1.type == REG ? op1 : asm_alloc_op(asm_);
+  asm_push_op(asm_, result);
+
+#if ARVM_JIT_ARCH == ARVM_JIT_ARCH_X86 || ARVM_JIT_ARCH == ARVM_JIT_ARCH_X86_64
+  if (op1.type != REG)
+    asm_x86_mov_op(asm_, result.reg, op1);
+
+  switch (op2.type) {
+#if ARVM_JIT_ARCH == ARVM_JIT_ARCH_X86_64
+  case ARG:
+    // OR r/m16/32/64, r16/32/64
+    asm_x86_emit_rex(asm_, true, false, result.reg >= R8, false);
+    asm_x86_emit_opcode(asm_, 0x09);
+    asm_x86_emit_modrm(asm_, 0b11, RCX, result.reg);
+    break;
+  case REG:
+    // OR r/m16/32/64, r16/32/64
+    asm_x86_emit_rex(asm_, true, op2.reg >= R8, result.reg >= R8, false);
+    asm_x86_emit_opcode(asm_, 0x09);
+    asm_x86_emit_modrm(asm_, 0b11, op2.reg, result.reg);
+    break;
+  case IMM:
+    asm_x86_emit_rex(asm_, true, false, result.reg >= R8, false);
+    if (op2.imm >> 8 == 0 && false) {
+      // OR r/m16/32/64, imm8
+      asm_x86_emit_opcode(asm_, 0x83);
+      asm_x86_emit_modrm(asm_, 0b11, 1, result.reg);
+      asm_x86_emit_imm8(asm_, (asm_byte_t)op2.imm);
+    } else {
+      // OR r/m16/32/64, imm16/32/64
+      asm_x86_emit_opcode(asm_, 0x81);
+      asm_x86_emit_modrm(asm_, 0b11, 1, result.reg);
+      asm_x86_emit_imm32(asm_, op2.imm);
+    }
+    break;
+#else
+  case ARG:
+    // TODO
+    break;
+  case REG:
+    // OR r/m16/32/64, r16/32/64
+    asm_x86_emit_opcode(asm_, 0x09);
+    asm_x86_emit_modrm(asm_, 0b11, op2.reg, result.reg);
+    break;
+  case IMM:
+    if (op2.imm >> 8 == 0) {
+      // OR r/m16/32, imm8
+      asm_x86_emit_opcode(asm_, 0x83);
+      asm_x86_emit_modrm(asm_, 0b11, 1, result.reg);
+      asm_x86_emit_imm8(asm_, (asm_byte_t)op2.imm);
+    } else {
+      // OR r/m16/32, imm16/32
+      asm_x86_asm_x86_emit_opcode(asm_, 0x81);
+      asm_x86_emit_modrm(asm_, 0b11, 1, result.reg);
+      asm_x86_emit_imm32(asm_, op2.imm);
+    }
+    break;
+#endif
+  default:
+    unreachable();
+  }
+#else
+  unreachable();
+#endif
+}
+
+void asm_and(asm_t *asm_) {
+  asm_operand_t op2 = asm_pop_op(asm_);
+  asm_operand_t op1 = asm_pop_op(asm_);
+  asm_free_op(asm_, op1);
+  asm_free_op(asm_, op2);
+
+  if (op1.type == IMM && op2.type == IMM) {
+    asm_push_op(asm_, (asm_operand_t){IMM, .imm = op1.imm && op2.imm});
+    return;
+  }
+
+  if (op2.type == REG && op1.type != REG) {
+    asm_operand_t tmp = op2;
+    op2 = op1;
+    op1 = tmp;
+  }
+
+#if ARVM_JIT_ARCH == ARVM_JIT_ARCH_X86 || ARVM_JIT_ARCH == ARVM_JIT_ARCH_X86_64
+  if ((op2.type == IMM && op2.imm >> 32 != 0) ||
+      (op1.type == IMM && op1.imm >> 8 == 0)) {
+    asm_operand_t tmp = op2;
+    op2 = op1;
+    op1 = tmp;
+  }
+#endif
+
+  asm_operand_t result = op1.type == REG ? op1 : asm_alloc_op(asm_);
+  asm_push_op(asm_, result);
+
+#if ARVM_JIT_ARCH == ARVM_JIT_ARCH_X86 || ARVM_JIT_ARCH == ARVM_JIT_ARCH_X86_64
+  if (op1.type != REG)
+    asm_x86_mov_op(asm_, result.reg, op1);
+
+  switch (op2.type) {
+#if ARVM_JIT_ARCH == ARVM_JIT_ARCH_X86_64
+  case ARG:
+    // AND r/m16/32/64, r16/32/64
+    asm_x86_emit_rex(asm_, true, false, result.reg >= R8, false);
+    asm_x86_emit_opcode(asm_, 0x21);
+    asm_x86_emit_modrm(asm_, 0b11, RCX, result.reg);
+    break;
+  case REG:
+    // AND r/m16/32/64, r16/32/64
+    asm_x86_emit_rex(asm_, true, op2.reg >= R8, result.reg >= R8, false);
+    asm_x86_emit_opcode(asm_, 0x21);
+    asm_x86_emit_modrm(asm_, 0b11, op2.reg, result.reg);
+    break;
+  case IMM:
+    asm_x86_emit_rex(asm_, true, false, result.reg >= R8, false);
+    if (op2.imm >> 8 == 0 && false) {
+      // AND r/m16/32/64, imm8
+      asm_x86_emit_opcode(asm_, 0x83);
+      asm_x86_emit_modrm(asm_, 0b11, 4, result.reg);
+      asm_x86_emit_imm8(asm_, (asm_byte_t)op2.imm);
+    } else {
+      // AND r/m16/32/64, imm16/32/64
+      asm_x86_emit_opcode(asm_, 0x81);
+      asm_x86_emit_modrm(asm_, 0b11, 4, result.reg);
+      asm_x86_emit_imm32(asm_, op2.imm);
+    }
+    break;
+#else
+  case ARG:
+    // TODO
+    break;
+  case REG:
+    // AND r/m16/32/64, r16/32/64
+    asm_x86_emit_opcode(asm_, 0x21);
+    asm_x86_emit_modrm(asm_, 0b11, op2.reg, result.reg);
+    break;
+  case IMM:
+    if (op2.imm >> 8 == 0) {
+      // AND r/m16/32, imm8
+      asm_x86_emit_opcode(asm_, 0x83);
+      asm_x86_emit_modrm(asm_, 0b11, 4, result.reg);
+      asm_x86_emit_imm8(asm_, (asm_byte_t)op2.imm);
+    } else {
+      // AND r/m16/32, imm16/32
+      asm_x86_asm_x86_emit_opcode(asm_, 0x81);
+      asm_x86_emit_modrm(asm_, 0b11, 4, result.reg);
       asm_x86_emit_imm32(asm_, op2.imm);
     }
     break;
