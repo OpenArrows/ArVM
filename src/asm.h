@@ -87,6 +87,8 @@ void *asm_ptr(asm_t *asm_, asm_label_t label);
 
 void asm_label(asm_t *asm_, asm_label_t *label);
 
+void asm_reserve_reg(asm_t *asm_, asm_reg_t reg);
+
 asm_operand_t asm_alloc_op(asm_t *asm_);
 
 void asm_free_op(asm_t *asm_, asm_operand_t op);
@@ -102,6 +104,8 @@ asm_operand_t asm_pop_op(asm_t *asm_);
 void asm_arg(asm_t *asm_);
 
 void asm_const(asm_t *asm_, asm_maxword_t value);
+
+void asm_mod(asm_t *asm_, asm_maxword_t divisor);
 
 void asm_add(asm_t *asm_);
 

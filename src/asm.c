@@ -148,6 +148,39 @@ void asm_const(asm_t *asm_, asm_maxword_t value) {
   asm_push_op(asm_, (asm_operand_t){IMM, .imm = value});
 }
 
+void asm_mod(asm_t *asm_, asm_maxword_t divisor) {
+  asm_operand_t divident = asm_pop_op(asm_);
+  asm_free_op(asm_, divident);
+
+  if (divident.type == IMM) {
+    asm_push_op(asm_, (asm_operand_t){IMM, .imm = divident.imm % divisor});
+    return;
+  }
+
+#if ARVM_JIT_ARCH == ARVM_JIT_ARCH_X86
+  // TODO
+#elif ARVM_JIT_ARCH == ARVM_JIT_ARCH_X86_64
+  asm_reserve_reg(asm_, RAX);
+  asm_reserve_reg(asm_, RDX);
+
+  asm_x86_mov_op(asm_, RAX, divident);
+
+  asm_x86_emit_rex(asm_, true, false, false, false);
+  asm_x86_emit_opcode(asm_, 0x31);
+  asm_x86_emit_modrm(asm_, 0b11, RDX, RDX);
+
+  asm_x86_emit_mov_r64_imm64(asm_, RBX, divisor);
+
+  asm_x86_emit_rex(asm_, true, false, false, false);
+  asm_x86_emit_opcode(asm_, 0xF7);
+  asm_x86_emit_modrm(asm_, 0b11, 6, RBX);
+
+  asm_->allocated_registers[RAX] = false;
+
+  asm_push_op(asm_, (asm_operand_t){REG, .reg = RDX});
+#endif
+}
+
 void asm_add(asm_t *asm_) {
   asm_operand_t op2 = asm_pop_op(asm_);
   asm_operand_t op1 = asm_pop_op(asm_);
@@ -239,9 +272,9 @@ void asm_add(asm_t *asm_) {
 }
 
 void asm_ret(asm_t *asm_) {
+  assert(asm_->operand_stack.count == 1);
   asm_operand_t op = asm_pop_op(asm_);
   asm_free_op(asm_, op);
-  assert(asm_->operand_stack.count == 0);
 
 #if ARVM_JIT_ARCH == ARVM_JIT_ARCH_X86 || ARVM_JIT_ARCH == ARVM_JIT_ARCH_X86_64
 #if ARVM_JIT_ARCH == ARVM_JIT_ARCH_X86_64
@@ -266,6 +299,21 @@ void asm_build(asm_t *asm_) {
 
 void asm_free(asm_t *asm_) { xbuf_unmap(asm_->buf); }
 
+void asm_reserve_reg(asm_t *asm_, asm_reg_t reg) {
+  if (!asm_->allocated_registers[reg])
+    goto success;
+  for (size_t i = asm_->operand_stack.count; i-- > 0;) {
+    asm_operand_t *other = &asm_->operand_stack.operands[i];
+    if (other->type == REG && !other->spilled && other->reg == reg) {
+      asm_spill(asm_, other);
+      goto success;
+    }
+  }
+  return;
+success:
+  asm_->allocated_registers[reg] = true;
+}
+
 asm_operand_t asm_alloc_op(asm_t *asm_) {
   asm_operand_t op = {};
 #if ARVM_JIT_ARCH == ARVM_JIT_ARCH_X86 || ARVM_JIT_ARCH == ARVM_JIT_ARCH_X86_64
@@ -282,7 +330,7 @@ asm_operand_t asm_alloc_op(asm_t *asm_) {
         goto allocated;
       }
     }
-  for (size_t i = 0; i < asm_->operand_stack.count; i++) {
+  for (size_t i = asm_->operand_stack.count; i-- > 0;) {
     asm_operand_t *other = &asm_->operand_stack.operands[i];
     if (other->type == REG && !other->spilled) {
       asm_spill(asm_, other);
@@ -348,6 +396,7 @@ void asm_push_op(asm_t *asm_, asm_operand_t op) {
 }
 
 asm_operand_t asm_pop_op(asm_t *asm_) {
+  assert(asm_->operand_stack.count > 0);
   asm_operand_t op = asm_->operand_stack.operands[--asm_->operand_stack.count];
   if (op.type == REG && op.spilled)
     asm_unspill(asm_, &op);

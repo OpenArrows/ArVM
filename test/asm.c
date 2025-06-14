@@ -40,6 +40,21 @@ void test_asm_const(void) {
   TEST_ASSERT_EQUAL(1, func(123));
 }
 
+void test_asm_mod(void) {
+  asm_label_t func_lbl = {};
+
+  asm_label(&asm_, &func_lbl);
+  asm_arg(&asm_);
+  asm_mod(&asm_, 4);
+  asm_ret(&asm_);
+
+  asm_build(&asm_);
+
+  arvm_val_t (*func)(arvm_val_t) = asm_ptr(&asm_, func_lbl);
+
+  TEST_ASSERT_EQUAL(3, func(123));
+}
+
 void test_asm_add(void) {
   asm_label_t func_lbl = {};
 
@@ -60,6 +75,7 @@ int main(void) {
   UNITY_BEGIN();
   RUN_TEST(test_asm_arg);
   RUN_TEST(test_asm_const);
+  RUN_TEST(test_asm_mod);
   RUN_TEST(test_asm_add);
   return UNITY_END();
 }
