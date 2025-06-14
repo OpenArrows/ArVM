@@ -21,3 +21,7 @@ add_test(NAME ArVM_opt COMMAND arvm_test_opt)
 add_executable(arvm_test_eval eval.c)
 target_link_libraries(arvm_test_eval arvm unity)
 add_test(NAME ArVM_eval COMMAND arvm_test_eval)
+
+add_executable(arvm_test_asm asm.c)
+target_link_libraries(arvm_test_asm arvm unity)
+add_test(NAME ArVM_asm COMMAND arvm_test_asm)

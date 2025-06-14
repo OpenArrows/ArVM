@@ -1,5 +1,6 @@
 add_library(arvm STATIC
     eval.c builder.c opt.c analyze.c
+    asm.c codegen.c xbuf.c
     transform.c match.c visit.c arena.c
     iterators.c imath.c
 )

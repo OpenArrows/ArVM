@@ -79,7 +79,11 @@ struct expression {
 // Represents an unary function f(t), t > 0, that returns a boolean value
 // (active/inactive state) for each tick
 struct function {
+  // Expression that defines the function
   arvm_expr_t *value;
+
+  // Pointer to a JIT-compiled function
+  arvm_val_t (*func)(arvm_val_t);
 };
 
 #define ARVM_FALSE 0
