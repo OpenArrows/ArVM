@@ -18,16 +18,19 @@ bool permutation(perm_iter_t *it) {
     {
       for (size_t i = it->permutation_length; i-- > 0;) {
         it->cycles[i]--;
-        void *elem = it->array[i];
+        void *iptr = (char *)it->array + i * it->size;
+        char elem[it->size];
+        memcpy(elem, iptr, sizeof(elem));
         if (it->cycles[i] == 0) {
-          memcpy(&it->array[i], &it->array[i + 1],
-                 sizeof(void *) * (it->length - i));
-          it->array[it->length - 1] = elem;
+          memcpy(iptr, iptr + it->size, (it->length - i) * it->size);
+          memcpy((char *)it->array + (it->length - 1) * it->size, elem,
+                 it->size);
           it->cycles[i] = it->length - i;
         } else {
           size_t j = it->length - it->cycles[i];
-          it->array[i] = it->array[j];
-          it->array[j] = elem;
+          void *jptr = (char *)it->array + j * it->size;
+          memcpy(iptr, jptr, it->size);
+          memcpy(jptr, elem, it->size);
           return 1;
         }
       }

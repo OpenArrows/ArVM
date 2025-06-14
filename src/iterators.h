@@ -3,8 +3,9 @@
 #include <stddef.h>
 
 typedef struct permutation_iterator_state {
-  void **array;
+  void *array;
   size_t length;
+  size_t size;
   size_t permutation_length;
   size_t *cycles;
 } perm_iter_t;

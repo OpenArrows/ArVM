@@ -82,6 +82,7 @@ bool match_next(pattern_t *pattern, arvm_expr_t *expr) {
       nary_match_failure:
         pattern->nary.perm_it.array = expr->nary.args.exprs;
         pattern->nary.perm_it.length = expr->nary.args.size;
+        pattern->nary.perm_it.size = sizeof(arvm_expr_t *);
         pattern->nary.perm_it.permutation_length = pattern->nary.args.size;
         for (size_t i = 0; i < pattern->nary.args.size; i++)
           match_init(pattern->nary.args.patterns[i]);
