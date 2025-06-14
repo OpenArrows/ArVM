@@ -149,16 +149,30 @@ void asm_const(asm_t *asm_, asm_maxword_t value) {
 }
 
 void asm_add(asm_t *asm_) {
-  asm_operand_t op1 = asm_pop_op(asm_);
   asm_operand_t op2 = asm_pop_op(asm_);
+  asm_operand_t op1 = asm_pop_op(asm_);
   asm_free_op(asm_, op1);
   asm_free_op(asm_, op2);
+
+  if (op1.type == IMM && op2.type == IMM) {
+    asm_push_op(asm_, (asm_operand_t){IMM, .imm = op1.imm + op2.imm});
+    return;
+  }
 
   if (op2.type == REG && op1.type != REG) {
     asm_operand_t tmp = op2;
     op2 = op1;
     op1 = tmp;
   }
+
+#if ARVM_JIT_ARCH == ARVM_JIT_ARCH_X86 || ARVM_JIT_ARCH == ARVM_JIT_ARCH_X86_64
+  if ((op2.type == IMM && op2.imm >> 32 != 0) ||
+      (op1.type == IMM && op1.imm >> 8 == 0)) {
+    asm_operand_t tmp = op2;
+    op2 = op1;
+    op1 = tmp;
+  }
+#endif
 
   asm_operand_t result = op1.type == REG ? op1 : asm_alloc_op(asm_);
   asm_push_op(asm_, result);
