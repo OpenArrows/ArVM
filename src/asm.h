@@ -113,6 +113,8 @@ void asm_or(asm_t *asm_);
 
 void asm_and(asm_t *asm_);
 
+void asm_xor(asm_t *asm_);
+
 void asm_ret(asm_t *asm_);
 
 void asm_build(asm_t *asm_);
