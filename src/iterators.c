@@ -3,46 +3,7 @@
 #include <string.h>
 
 bool permutation(perm_iter_t *it) {
-  do {
-    if (!(it->cycles != ((void *)0))) {
-      {
-        if (it->permutation_length > it->length)
-          goto iterator_end;
-        else if (it->permutation_length == 0)
-          it->permutation_length = it->length;
-        it->cycles = malloc(sizeof(size_t) * it->permutation_length);
-        for (size_t i = 0; i < it->permutation_length; i++)
-          it->cycles[i] = it->length - i;
-      };
-    }
-    {
-      for (size_t i = it->permutation_length; i-- > 0;) {
-        it->cycles[i]--;
-        void *iptr = (char *)it->array + i * it->size;
-        char elem[it->size];
-        memcpy(elem, iptr, sizeof(elem));
-        if (it->cycles[i] == 0) {
-          memcpy(iptr, iptr + it->size, (it->length - i) * it->size);
-          memcpy((char *)it->array + (it->length - 1) * it->size, elem,
-                 it->size);
-          it->cycles[i] = it->length - i;
-        } else {
-          size_t j = it->length - it->cycles[i];
-          void *jptr = (char *)it->array + j * it->size;
-          memcpy(iptr, jptr, it->size);
-          memcpy(jptr, elem, it->size);
-          return 1;
-        }
-      }
-      goto iterator_end;
-    };
-  iterator_end: {
-    free(it->cycles);
-    it->cycles = ((void *)0);
-  };
-    return 0;
-  } while (0);
-  /*ITERATOR(
+  ITERATOR(
       it->cycles != NULL,
       {
         if (it->permutation_length > it->length)
@@ -56,16 +17,19 @@ bool permutation(perm_iter_t *it) {
       {
         for (size_t i = it->permutation_length; i-- > 0;) {
           it->cycles[i]--;
-          void *elem = it->array[i];
+          void *iptr = (char *)it->array + i * it->size;
+          char elem[it->size];
+          memcpy(elem, iptr, sizeof(elem));
           if (it->cycles[i] == 0) {
-            memcpy(&it->array[i], &it->array[i + 1],
-                   sizeof(void *) * (it->length - i));
-            it->array[it->length - 1] = elem;
+            memcpy(iptr, iptr + it->size, (it->length - i) * it->size);
+            memcpy((char *)it->array + (it->length - 1) * it->size, elem,
+                   it->size);
             it->cycles[i] = it->length - i;
           } else {
             size_t j = it->length - it->cycles[i];
-            it->array[i] = it->array[j];
-            it->array[j] = elem;
+            void *jptr = (char *)it->array + j * it->size;
+            memcpy(iptr, jptr, it->size);
+            memcpy(jptr, elem, it->size);
             YIELD();
           }
         }
@@ -74,5 +38,5 @@ bool permutation(perm_iter_t *it) {
       {
         free(it->cycles);
         it->cycles = NULL;
-      });*/
+      });
 }
