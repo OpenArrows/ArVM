@@ -1,3 +1,6 @@
+#ifndef MATCH_H
+#define MATCH_H
+
 #include "arvm.h"
 #include "iterators.h"
 #include <stdbool.h>
@@ -64,8 +67,8 @@ typedef enum pattern_kind {
 
 struct pattern {
   pattern_kind_t kind;
-  arvm_expr_t **capture;
-  arvm_expr_t *match;
+  arvm_expr_t *capture;
+  arvm_expr_t match;
   union {
     struct {
       val_pattern_t *op;
@@ -74,7 +77,7 @@ struct pattern {
     } binary;
     struct {
       val_pattern_t *op;
-      patternlist_t args;
+      patternlist_t operands;
       perm_iter_t perm_it;
     } nary;
     struct {
@@ -87,7 +90,7 @@ struct pattern {
       val_pattern_t *max;
     } in_interval;
     struct {
-      val_pattern_t *target;
+      val_pattern_t *func;
       pattern_t *arg;
     } call;
     struct {
@@ -118,14 +121,14 @@ struct pattern {
 // Matches an n-ary expression
 #define NARY_AS(capture, op, ...)                                              \
   (&(pattern_t){EXPR_NARY, &capture,                                           \
-                .nary = {op, .args = PATTERN_LIST(__VA_ARGS__)}})
+                .nary = {op, .operands = PATTERN_LIST(__VA_ARGS__)}})
 
 #define NARY(op, ...) NARY_AS(*NULL, op, __VA_ARGS__)
 
 // Matches an n-ary expression of fixed length
 #define NARY_FIXED_AS(capture, op, ...)                                        \
   (&(pattern_t){EXPR_NARY_FIXED, &capture,                                     \
-                .nary = {op, .args = PATTERN_LIST(__VA_ARGS__)}})
+                .nary = {op, .operands = PATTERN_LIST(__VA_ARGS__)}})
 
 #define NARY_FIXED(op, ...) NARY_FIXED_AS(*NULL, op, __VA_ARGS__)
 
@@ -138,10 +141,10 @@ struct pattern {
 
 #define ARG_REF() ARG_REF_AS(*NULL)
 
-#define CALL_AS(capture, target, arg)                                          \
-  (&(pattern_t){EXPR_CALL, &capture, .call = {target, arg}})
+#define CALL_AS(capture, func, arg)                                            \
+  (&(pattern_t){EXPR_CALL, &capture, .call = {func, arg}})
 
-#define CALL(target, arg) CALL_AS(*NULL, target, arg)
+#define CALL(func, arg) CALL_AS(*NULL, func, arg)
 
 #define CONST_AS(capture, value)                                               \
   (&(pattern_t){EXPR_CONST, &capture, .const_ = {value}})
@@ -151,12 +154,12 @@ bool val_matches(arvm_val_t val, val_pattern_t *pattern);
 
 void match_init(pattern_t *pattern);
 
-bool match_next(pattern_t *pattern, arvm_expr_t *expr);
+bool match_next(pattern_t *pattern, arvm_expr_t expr);
 
 void find_slots(pattern_t *pattern, pattern_t **slots, size_t *slot_count,
                 val_pattern_t **val_slots, size_t *val_slot_count);
 
-bool matches(arvm_expr_t *expr, pattern_t *pattern);
+bool matches(arvm_expr_t expr, pattern_t *pattern);
 
 #define FOR_EACH_MATCH(expr, pattern, block)                                   \
   do {                                                                         \
@@ -172,9 +175,9 @@ bool matches(arvm_expr_t *expr, pattern_t *pattern);
                                                                                \
     while (match_next(_pattern, expr)) {                                       \
       if (slot_count > 0) {                                                    \
-        arvm_expr_t *match = slots[0]->match;                                  \
+        arvm_expr_t match = slots[0]->match;                                   \
         for (size_t i = 0; i < slot_count; i++)                                \
-          if (!is_identical(match, slots[i]->match))                           \
+          if (!arvm_is_identical(match, slots[i]->match))                      \
             goto _skip;                                                        \
       }                                                                        \
                                                                                \
@@ -190,3 +193,5 @@ bool matches(arvm_expr_t *expr, pattern_t *pattern);
     _skip:;                                                                    \
     }                                                                          \
   } while (0);
+
+#endif /* MATCH_H */

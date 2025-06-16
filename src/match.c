@@ -1,6 +1,7 @@
 #include "match.h"
 #include "analyze.h"
-#include <assert.h>
+#include "arvm.h"
+#include "ir.h"
 #include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
@@ -12,8 +13,8 @@ void match_init(pattern_t *pattern) {
   case EXPR_NARY:
     free(pattern->nary.perm_it.cycles);
     pattern->nary.perm_it.cycles = NULL;
-    for (size_t i = 0; i < pattern->nary.args.size; i++)
-      match_init(pattern->nary.args.patterns[i]);
+    for (size_t i = 0; i < pattern->nary.operands.size; i++)
+      match_init(pattern->nary.operands.patterns[i]);
     break;
   case EXPR_NARY_EACH:
     match_init(pattern->nary_each.arg);
@@ -29,7 +30,7 @@ void match_init(pattern_t *pattern) {
   }
 }
 
-bool match_next(pattern_t *pattern, arvm_expr_t *expr) {
+bool match_next(pattern_t *pattern, arvm_expr_t expr) {
   switch (pattern->kind) {
   case EXPR_ANY:
   case EXPR_SLOT:
@@ -55,37 +56,37 @@ bool match_next(pattern_t *pattern, arvm_expr_t *expr) {
     break;
   case EXPR_NARY_FIXED:
     if (!(expr->kind == NARY &&
-          expr->nary.args.size == pattern->nary.args.size))
+          expr->nary.operands.size == pattern->nary.operands.size))
       return false;
   case EXPR_NARY: {
     if (!(expr->kind == NARY &&
-          expr->nary.args.size >= pattern->nary.args.size &&
+          expr->nary.operands.size >= pattern->nary.operands.size &&
           val_matches(expr->nary.op, pattern->nary.op)))
       return false;
     do {
       if (!pattern->match) {
-        for (size_t i = 0; i < pattern->nary.args.size; i++)
-          if (!match_next(pattern->nary.args.patterns[i],
-                          expr->nary.args.exprs[i]))
+        for (size_t i = 0; i < pattern->nary.operands.size; i++)
+          if (!match_next(pattern->nary.operands.patterns[i],
+                          expr->nary.operands.exprs[i]))
             goto nary_match_failure;
         goto nary_matched;
       } else {
-        for (size_t i = 0; i < pattern->nary.args.size; i++)
-          if (match_next(pattern->nary.args.patterns[i],
-                         expr->nary.args.exprs[i])) {
+        for (size_t i = 0; i < pattern->nary.operands.size; i++)
+          if (match_next(pattern->nary.operands.patterns[i],
+                         expr->nary.operands.exprs[i])) {
             goto nary_matched;
           } else {
-            match_init(pattern->nary.args.patterns[i]);
-            match_next(pattern->nary.args.patterns[i],
-                       expr->nary.args.exprs[i]);
+            match_init(pattern->nary.operands.patterns[i]);
+            match_next(pattern->nary.operands.patterns[i],
+                       expr->nary.operands.exprs[i]);
           }
       nary_match_failure:
-        pattern->nary.perm_it.array = expr->nary.args.exprs;
-        pattern->nary.perm_it.length = expr->nary.args.size;
+        pattern->nary.perm_it.array = expr->nary.operands.exprs;
+        pattern->nary.perm_it.length = expr->nary.operands.size;
         pattern->nary.perm_it.size = sizeof(arvm_expr_t *);
-        pattern->nary.perm_it.permutation_length = pattern->nary.args.size;
-        for (size_t i = 0; i < pattern->nary.args.size; i++)
-          match_init(pattern->nary.args.patterns[i]);
+        pattern->nary.perm_it.permutation_length = pattern->nary.operands.size;
+        for (size_t i = 0; i < pattern->nary.operands.size; i++)
+          match_init(pattern->nary.operands.patterns[i]);
       }
     } while (permutation(&pattern->nary.perm_it));
     return false;
@@ -107,7 +108,7 @@ bool match_next(pattern_t *pattern, arvm_expr_t *expr) {
     break;
   case EXPR_CALL:
     if (!(expr->kind == CALL &&
-          val_matches((arvm_val_t)expr->call.target, pattern->call.target) &&
+          val_matches((arvm_val_t)expr->call.func, pattern->call.func) &&
           match_next(pattern->call.arg, expr->call.arg)))
       return false;
     break;
@@ -177,8 +178,8 @@ void find_slots(pattern_t *pattern, pattern_t **slots, size_t *slot_count,
     break;
   case EXPR_NARY:
   case EXPR_NARY_FIXED:
-    for (size_t i = 0; i < pattern->nary.args.size; i++) {
-      pattern_t *arg_pattern = pattern->nary.args.patterns[i];
+    for (size_t i = 0; i < pattern->nary.operands.size; i++) {
+      pattern_t *arg_pattern = pattern->nary.operands.patterns[i];
       find_slots(arg_pattern, slots, slot_count, val_slots, val_slot_count);
     }
     break;
@@ -199,7 +200,7 @@ void find_slots(pattern_t *pattern, pattern_t **slots, size_t *slot_count,
   }
 }
 
-bool matches(arvm_expr_t *expr, pattern_t *pattern) {
+bool matches(arvm_expr_t expr, pattern_t *pattern) {
   match_init(pattern);
 
   size_t slot_count = 0, val_slot_count = 0;
@@ -213,9 +214,9 @@ bool matches(arvm_expr_t *expr, pattern_t *pattern) {
 
   while (match_next(pattern, expr)) {
     if (slot_count > 0) {
-      arvm_expr_t *match = slots[0]->match;
+      arvm_expr_t match = slots[0]->match;
       for (size_t i = 0; i < slot_count; i++)
-        if (!is_identical(match, slots[i]->match))
+        if (!arvm_is_identical(match, slots[i]->match))
           goto skip;
     }
 

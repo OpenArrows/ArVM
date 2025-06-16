@@ -1,5 +1,5 @@
+#include <../src/asm.h>
 #include <arvm.h>
-#include <asm.h>
 #include <unity.h>
 
 xbuf_t buf;

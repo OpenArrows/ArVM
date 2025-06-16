@@ -1,57 +1,47 @@
-#include <limits.h>
+#ifndef IR_H
+#define IR_H
+
+#include "arvm.h"
 #include <stddef.h>
-#include <stdint.h>
 
-#ifndef ARVM
-#define ARVM
-typedef long long arvm_val_t;
-
-typedef struct expression arvm_expr_t;
-
-typedef struct expression_list {
+typedef struct arvm_exprlist {
   size_t size;
-  arvm_expr_t **exprs;
+  arvm_expr_t *exprs;
 } arvm_exprlist_t;
 
-typedef struct function arvm_func_t;
-
-typedef enum binary_op { MOD } arvm_binary_op_t;
-
 // Binary expression, equivalent to non-commutative operations
-typedef struct binary_expr {
+typedef struct arvm_binary_expr {
   arvm_binary_op_t op;
-  arvm_expr_t *lhs;
-  arvm_expr_t *rhs;
+  arvm_expr_t lhs;
+  arvm_expr_t rhs;
 } arvm_binary_expr_t;
 
-typedef enum nary_op { OR, AND, XOR, ADD } arvm_nary_op_t;
-
 // N-ary expression, equivalent to commutative arithmetic/boolean operations
-typedef struct nary_expr {
+typedef struct arvm_nary_expr {
   arvm_nary_op_t op;
-  arvm_exprlist_t args;
+  arvm_exprlist_t operands;
 } arvm_nary_expr_t;
 
 // Interval expression, checks whether the value is within an expected range
 // (inclusive)
-typedef struct in_interval_expr {
-  arvm_expr_t *value;
+typedef struct arvm_in_interval_expr {
+  arvm_expr_t value;
   arvm_val_t min;
   arvm_val_t max;
 } arvm_in_interval_expr_t;
 
 // Call expression
-typedef struct call_expr {
-  arvm_func_t *target;
-  arvm_expr_t *arg;
+typedef struct arvm_call_expr {
+  arvm_func_t func;
+  arvm_expr_t arg;
 } arvm_call_expr_t;
 
 // Constant expression, used to represent integer values
-typedef struct const_expr {
+typedef struct arvm_const_expr {
   arvm_val_t value;
 } arvm_const_expr_t;
 
-typedef enum expr_kind {
+typedef enum arvm_expr_kind {
   BINARY,
   NARY,
   IN_INTERVAL,
@@ -65,7 +55,7 @@ typedef enum expr_kind {
   RESERVED = -3
 } arvm_expr_kind_t;
 
-struct expression {
+struct arvm_expr {
   arvm_expr_kind_t kind;
   union {
     arvm_binary_expr_t binary;
@@ -78,17 +68,12 @@ struct expression {
 
 // Represents an unary function f(t), t > 0, that returns a boolean value
 // (active/inactive state) for each tick
-struct function {
+struct arvm_func {
   // Expression that defines the function
-  arvm_expr_t *value;
+  arvm_expr_t value;
 
   // Pointer to a JIT-compiled function
   arvm_val_t (*func)(arvm_val_t);
 };
 
-#define ARVM_FALSE 0
-#define ARVM_TRUE 1
-
-#define ARVM_NEGATIVE_INFINITY LLONG_MIN
-#define ARVM_POSITIVE_INFINITY LLONG_MAX
-#endif
+#endif /* IR_H */

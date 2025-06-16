@@ -11,19 +11,28 @@
 
 #define OPT_ARENA_BLOCK_SIZE 16
 
-void arvm_optimize(arvm_expr_t *expr, void *ctx_) {
-  arvm_opt_ctx_t *ctx = ctx_;
+typedef struct opt_ctx opt_ctx_t;
 
-  arvm_expr_t *prev = make_expr(ctx->tmp_arena, NONE);
+struct opt_ctx {
+  opt_ctx_t *parent;
+  arvm_arena_t *arena;
+  arvm_arena_t *tmp_arena;
+  arvm_func_t func;
+};
+
+static void optimize_visitor(arvm_expr_t expr, void *ctx_) {
+  opt_ctx_t *ctx = ctx_;
+
+  arvm_expr_t prev;
   do {
-    copy_expr(ctx->tmp_arena, expr, prev);
+    prev = arvm_clone(ctx->tmp_arena, expr);
 
     { // General n-ary optimizations
       {
         // Unwrap n-ary expressions
-        arvm_expr_t *child;
+        arvm_expr_t child;
         if (matches(expr, NARY_FIXED(ANYVAL(), ANY_AS(child)))) {
-          transpose(ctx->arena, child, expr);
+          arvm_transpose(ctx->arena, child, expr);
           return;
         }
       }
@@ -31,30 +40,31 @@ void arvm_optimize(arvm_expr_t *expr, void *ctx_) {
       {
         // Fold n-ary expressions
         if (matches(expr, NARY(ANYVAL(), NARY(VAL(expr->nary.op))))) {
-          size_t argc = expr->nary.args.size;
-          arvm_expr_t **argv = expr->nary.args.exprs;
+          size_t operand_count = expr->nary.operands.size;
+          arvm_expr_t *operands = expr->nary.operands.exprs;
 
-          expr->nary.args.size = 0;
-          for (int i = 0; i < argc; i++) {
-            arvm_expr_t *arg = argv[i];
-            expr->nary.args.size +=
-                arg->kind == NARY && arg->nary.op == expr->nary.op
-                    ? arg->nary.args.size
+          expr->nary.operands.size = 0;
+          for (int i = 0; i < operand_count; i++) {
+            arvm_expr_t operand = operands[i];
+            expr->nary.operands.size +=
+                operand->kind == NARY && operand->nary.op == expr->nary.op
+                    ? operand->nary.operands.size
                     : 1;
           }
 
-          expr->nary.args.exprs = arena_alloc(
-              ctx->arena, sizeof(arvm_expr_t *) * expr->nary.args.size);
+          expr->nary.operands.exprs = arvm_arena_alloc(
+              ctx->arena, sizeof(arvm_expr_t) * expr->nary.operands.size);
 
           size_t offset = 0;
-          for (int i = 0; i < argc; i++) {
-            arvm_expr_t *arg = argv[i];
-            if (arg->kind == NARY && arg->nary.op == expr->nary.op) {
-              memcpy(&expr->nary.args.exprs[offset], arg->nary.args.exprs,
-                     sizeof(arvm_expr_t *) * arg->nary.args.size);
-              offset += arg->nary.args.size;
+          for (int i = 0; i < operand_count; i++) {
+            arvm_expr_t operand = operands[i];
+            if (operand->kind == NARY && operand->nary.op == expr->nary.op) {
+              memcpy(&expr->nary.operands.exprs[offset],
+                     operand->nary.operands.exprs,
+                     sizeof(arvm_expr_t) * operand->nary.operands.size);
+              offset += operand->nary.operands.size;
             } else {
-              expr->nary.args.exprs[offset] = arg;
+              expr->nary.operands.exprs[offset] = operand;
               offset++;
             }
           }
@@ -63,16 +73,15 @@ void arvm_optimize(arvm_expr_t *expr, void *ctx_) {
 
       {
         // Compile-time n-ary evaluation
-        arvm_expr_t *a, *b;
+        arvm_expr_t a, b;
         while (matches(expr, NARY(ANYVAL(), CONST_AS(a, ANYVAL()),
                                   CONST_AS(b, ANYVAL())))) {
-          arvm_val_t value = eval_nary(
-              &(arvm_nary_expr_t){.op = expr->nary.op,
-                                  .args = {2, (arvm_expr_t *[]){a, b}}},
-              (arvm_ctx_t){0});
-          arvm_expr_t const_ = {CONST, .const_ = {value}};
-          transpose(ctx->arena, &const_, a);
-          nary_remove(expr, b);
+          arvm_val_t value = arvm_eval_expr(&(struct arvm_expr){
+              NARY, .nary = {.op = expr->nary.op,
+                             .operands = {2, (arvm_expr_t[]){a, b}}}});
+          struct arvm_expr const_ = {CONST, .const_ = {value}};
+          arvm_transpose(ctx->arena, &const_, a);
+          arvm_nary_remove_operand(expr, b);
         }
       }
     } // General n-ary optimizations
@@ -80,12 +89,12 @@ void arvm_optimize(arvm_expr_t *expr, void *ctx_) {
     { // Interval optimizations
       {
         // Interval normalization (move const to RHS)
-        arvm_expr_t *nary, *const_;
-        if (matches(expr, IN_INTERVAL(NARY_AS(nary, VAL(ADD),
+        arvm_expr_t nary, const_;
+        if (matches(expr, IN_INTERVAL(NARY_AS(nary, VAL(ARVM_NARY_ADD),
                                               CONST_AS(const_, ANYVAL())),
                                       ANYVAL(), ANYVAL()))) {
-          nary_remove(nary, const_);
-          visit(nary, arvm_optimize, ctx);
+          arvm_nary_remove_operand(nary, const_);
+          arvm_visit(nary, optimize_visitor, ctx);
           expr->in_interval.min =
               iadd(expr->in_interval.min, -const_->const_.value);
           expr->in_interval.max =
@@ -96,33 +105,31 @@ void arvm_optimize(arvm_expr_t *expr, void *ctx_) {
       {
         // Compile-time interval evaluation
         if (matches(expr, IN_INTERVAL(CONST(ANYVAL()), ANYVAL(), ANYVAL()))) {
-          transpose(
-              ctx->arena,
-              make_const(ctx->tmp_arena,
-                         eval_in_interval(&expr->in_interval, (arvm_ctx_t){0})),
-              expr);
+          arvm_val_t result = arvm_eval_expr(expr);
+          struct arvm_expr const_ = {CONST, .const_ = {result}};
+          arvm_transpose(ctx->arena, &const_, expr);
           return;
         }
       }
 
       {
         // Merge intervals in logical expressions
-        arvm_expr_t *a, *b;
+        arvm_expr_t a, b;
         FOR_EACH_MATCH(expr,
-                       NARY(VAL(OR, AND),
+                       NARY(VAL(ARVM_NARY_OR, ARVM_NARY_AND),
                             IN_INTERVAL_AS(a, SLOT(), ANYVAL(), ANYVAL()),
                             IN_INTERVAL_AS(b, SLOT(), ANYVAL(), ANYVAL())),
                        {
-                         if (intervals_overlap(a, b)) {
-                           nary_remove(expr, b);
+                         if (arvm_intervals_overlap(a, b)) {
+                           arvm_nary_remove_operand(expr, b);
                            switch (expr->nary.op) {
-                           case OR:
+                           case ARVM_NARY_OR:
                              a->in_interval.min =
                                  imin(a->in_interval.min, b->in_interval.min);
                              a->in_interval.max =
                                  imax(a->in_interval.max, b->in_interval.max);
                              break;
-                           case AND:
+                           case ARVM_NARY_AND:
                              a->in_interval.min =
                                  imax(a->in_interval.min, b->in_interval.min);
                              a->in_interval.max =
@@ -140,67 +147,72 @@ void arvm_optimize(arvm_expr_t *expr, void *ctx_) {
     { // Boolean laws
       {
         // Annulment law
-        arvm_expr_t *arg;
-        if (matches(expr, NARY(VAL(OR), CONST_AS(arg, VAL(1)))) ||
-            matches(expr, NARY(VAL(AND), CONST_AS(arg, VAL(0))))) {
-          transpose(ctx->arena, arg, expr);
+        arvm_expr_t arg;
+        if (matches(expr, NARY(VAL(ARVM_NARY_OR), CONST_AS(arg, VAL(1)))) ||
+            matches(expr, NARY(VAL(ARVM_NARY_AND), CONST_AS(arg, VAL(0))))) {
+          arvm_transpose(ctx->arena, arg, expr);
           return;
         }
       }
 
       {
         // Identity law
-        arvm_expr_t *arg;
-        while (matches(expr, NARY(VAL(OR), CONST_AS(arg, VAL(0)))) ||
-               matches(expr, NARY(VAL(AND), CONST_AS(arg, VAL(1))))) {
-          nary_remove(expr, arg);
+        arvm_expr_t arg;
+        while (matches(expr, NARY(VAL(ARVM_NARY_OR), CONST_AS(arg, VAL(0)))) ||
+               matches(expr, NARY(VAL(ARVM_NARY_AND), CONST_AS(arg, VAL(1))))) {
+          arvm_nary_remove_operand(expr, arg);
         }
       }
 
       {
         // Idempotent law
-        arvm_expr_t *arg;
-        while (matches(expr, NARY(VAL(OR, AND), SLOT_AS(arg), SLOT()))) {
-          nary_remove(expr, arg);
+        arvm_expr_t arg;
+        while (matches(expr, NARY(VAL(ARVM_NARY_OR, ARVM_NARY_AND),
+                                  SLOT_AS(arg), SLOT()))) {
+          arvm_nary_remove_operand(expr, arg);
         }
       }
 
       {
         // Absorption law
-        arvm_expr_t *nary;
-        while (matches(expr, NARY(VAL(OR), NARY_AS(nary, VAL(AND), SLOT()),
+        arvm_expr_t nary;
+        while (matches(expr, NARY(VAL(ARVM_NARY_OR),
+                                  NARY_AS(nary, VAL(ARVM_NARY_AND), SLOT()),
                                   SLOT())) ||
-               matches(expr, NARY(VAL(AND), NARY_AS(nary, VAL(OR), SLOT()),
+               matches(expr, NARY(VAL(ARVM_NARY_AND),
+                                  NARY_AS(nary, VAL(ARVM_NARY_OR), SLOT()),
                                   SLOT()))) {
-          nary_remove(expr, nary);
+          arvm_nary_remove_operand(expr, nary);
         }
       }
 
       {
         // Distributive law
-        arvm_expr_t *nary;
+        arvm_expr_t nary;
         bool matched = false;
-        while (matches(expr, NARY(VAL(AND), NARY_AS(nary, VAL(OR))))) {
+        while (matches(
+            expr, NARY(VAL(ARVM_NARY_AND), NARY_AS(nary, VAL(ARVM_NARY_OR))))) {
           matched = true;
-          nary_remove(expr, nary);
-          for (int i = 0; i < nary->nary.args.size; i++) {
-            arvm_expr_t *arg = nary->nary.args.exprs[i];
+          arvm_nary_remove_operand(expr, nary);
+          for (int i = 0; i < nary->nary.operands.size; i++) {
+            arvm_expr_t arg = nary->nary.operands.exprs[i];
 
-            arvm_expr_t *new_arg = nary->nary.args.exprs[i] =
-                make_expr(ctx->arena, NARY);
-            new_arg->nary.op = AND;
-            new_arg->nary.args.size = expr->nary.args.size + 1;
-            new_arg->nary.args.exprs = arena_alloc(
-                ctx->arena, sizeof(arvm_expr_t *) * new_arg->nary.args.size);
-            for (int i = 0; i < expr->nary.args.size; i++)
-              new_arg->nary.args.exprs[i] =
-                  make_clone(ctx->arena, expr->nary.args.exprs[i]);
-            new_arg->nary.args.exprs[expr->nary.args.size] = arg;
+            arvm_expr_t new_arg = nary->nary.operands.exprs[i] =
+                arvm_new_expr(ctx->arena, NARY);
+            new_arg->nary.op = ARVM_NARY_AND;
+            new_arg->nary.operands.size = expr->nary.operands.size + 1;
+            new_arg->nary.operands.exprs = arvm_arena_alloc(
+                ctx->arena, sizeof(arvm_expr_t) * new_arg->nary.operands.size);
+            for (int i = 0; i < expr->nary.operands.size; i++)
+              new_arg->nary.operands.exprs[i] =
+                  arvm_clone(ctx->arena, expr->nary.operands.exprs[i]);
+            new_arg->nary.operands.exprs[expr->nary.operands.size] = arg;
           }
-          transpose(ctx->arena, nary, expr);
+          arvm_transpose(ctx->arena, nary, expr);
         }
         if (matched) {
-          visit(expr, arvm_optimize, ctx); // TODO: remove recursion if possible
+          arvm_visit(expr, optimize_visitor,
+                     ctx); // TODO: remove recursion if possible
           return;
         }
       }
@@ -210,12 +222,12 @@ void arvm_optimize(arvm_expr_t *expr, void *ctx_) {
       {
         // Call inlining
         if (matches(expr, CALL(ANYVAL(), ANY()))) {
-          arvm_func_t *func = expr->call.target;
+          arvm_func_t func = expr->call.func;
           if (func == NULL)
             goto noinline;
 
           // We don't want to get stuck when inlining recursive functions
-          arvm_opt_ctx_t *context = ctx;
+          opt_ctx_t *context = ctx;
           while (context) {
             if (func == context->func)
               goto noinline;
@@ -225,18 +237,20 @@ void arvm_optimize(arvm_expr_t *expr, void *ctx_) {
           // Besides just inlining the function, we also need to check that the
           // argument value is > 0, because functions are only defined for
           // positive arguments
-          arvm_expr_t *func_val = make_clone(ctx->tmp_arena, func->value);
-          replace(ctx->tmp_arena, func_val, ARG_REF(), expr->call.arg);
-          transpose(ctx->arena,
-                    make_nary(ctx->tmp_arena, AND, 2, func_val,
-                              make_in_interval(
-                                  ctx->tmp_arena,
-                                  make_clone(ctx->tmp_arena, expr->call.arg), 1,
-                                  ARVM_POSITIVE_INFINITY)),
-                    expr);
+          // TODO: replace arena allocations with local variable pointers
+          arvm_expr_t func_val = arvm_clone(ctx->tmp_arena, func->value);
+          arvm_replace(ctx->tmp_arena, func_val, ARG_REF(), expr->call.arg);
+          arvm_transpose(
+              ctx->arena,
+              arvm_new_nary(ctx->tmp_arena, ARVM_NARY_AND, 2, func_val,
+                            arvm_new_in_interval(
+                                ctx->tmp_arena,
+                                arvm_clone(ctx->tmp_arena, expr->call.arg), 1,
+                                ARVM_POSITIVE_INFINITY)),
+              expr);
 
-          visit(expr, arvm_optimize,
-                &(arvm_opt_ctx_t){ctx, ctx->tmp_arena, ctx->arena,
+          arvm_visit(expr, optimize_visitor,
+                     &(opt_ctx_t){ctx, ctx->arena, ctx->tmp_arena,
                                   func}); // TODO: do we need recursion here?
           return;
         }
@@ -245,43 +259,43 @@ void arvm_optimize(arvm_expr_t *expr, void *ctx_) {
 
       {
         // Constant-step recursion optimization
-        arvm_expr_t *base, *call_nary, *step, *condition;
+        arvm_expr_t base, call_nary, step, condition;
         if (matches(
                 expr,
                 NARY_FIXED(
-                    VAL(OR),
+                    VAL(ARVM_NARY_OR),
                     IN_INTERVAL_AS(base, ARG_REF(), SLOTVAL(), SLOTVAL()),
                     NARY_FIXED_AS(
-                        call_nary, VAL(AND),
+                        call_nary, VAL(ARVM_NARY_AND),
                         CALL(VAL((arvm_val_t)ctx->func),
                              NARY_FIXED(
-                                 VAL(ADD), ARG_REF(),
+                                 VAL(ARVM_NARY_ADD), ARG_REF(),
                                  CONST_AS(step, RANGEVAL(ARVM_NEGATIVE_INFINITY,
                                                          -1)))),
                         IN_INTERVAL_AS(condition, ARG_REF(), SLOTVAL(),
                                        VAL(ARVM_POSITIVE_INFINITY)))))) {
-          expr->nary.op = AND;
-          base->in_interval.value =
-              make_binary(ctx->arena, MOD, base->in_interval.value,
-                          make_const(ctx->arena, -step->const_.value));
+          expr->nary.op = ARVM_NARY_AND;
+          base->in_interval.value = arvm_new_binary(
+              ctx->arena, ARVM_BINARY_MOD, base->in_interval.value,
+              arvm_new_const(ctx->arena, -step->const_.value));
           base->in_interval.min = base->in_interval.max =
               base->in_interval.min % -step->const_.value;
-          transpose(ctx->arena, condition, call_nary);
+          arvm_transpose(ctx->arena, condition, call_nary);
         }
       }
     } // Call optimizations
 
-  } while (!is_identical(
+  } while (!arvm_is_identical(
       prev, expr)); // Repeat optimizations until no transformation is applied
 
   if (expr->kind == NARY) {
     // Sort n-ary operands to allow short-circuit evaluation
-    int i = 0, end = expr->nary.args.size - 1;
+    int i = 0, end = expr->nary.operands.size - 1;
     while (i <= end) {
-      arvm_expr_t *arg = expr->nary.args.exprs[i];
-      if (has_calls(arg)) {
-        expr->nary.args.exprs[i] = expr->nary.args.exprs[end];
-        expr->nary.args.exprs[end] = arg;
+      arvm_expr_t arg = expr->nary.operands.exprs[i];
+      if (arvm_has_calls(arg)) {
+        expr->nary.operands.exprs[i] = expr->nary.operands.exprs[end];
+        expr->nary.operands.exprs[end] = arg;
         end--;
       } else {
         i++;
@@ -290,9 +304,8 @@ void arvm_optimize(arvm_expr_t *expr, void *ctx_) {
   }
 }
 
-void arvm_optimize_fn(arvm_func_t *func, arena_t *arena) {
-  arena_t tmp_arena = (arena_t){sizeof(arvm_expr_t) * OPT_ARENA_BLOCK_SIZE};
-  visit(func->value, arvm_optimize,
-        &(arvm_opt_ctx_t){NULL, &tmp_arena, arena, func});
-  arena_free(&tmp_arena);
+void arvm_optimize_func(arvm_func_t func, arvm_arena_t *arena,
+                        arvm_arena_t *temp_arena) {
+  arvm_visit(func->value, optimize_visitor,
+             &(opt_ctx_t){NULL, temp_arena, arena, func});
 }

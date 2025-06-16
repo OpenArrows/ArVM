@@ -1,24 +1,24 @@
+#ifndef ARENA_H
+#define ARENA_H
+
 #include <stddef.h>
-#include <stdint.h>
 
-#ifndef ARENA
-#define ARENA
+typedef struct arvm_arena_block arvm_arena_block_t;
 
-typedef struct arena_block arena_block_t;
-
-struct arena_block {
-  arena_block_t *next;
+struct arvm_arena_block {
+  arvm_arena_block_t *next;
   size_t allocated;
   size_t capacity;
 };
 
-typedef struct arena {
+typedef struct arvm_arena {
   size_t block_size;
 
-  arena_block_t *head;
-} arena_t;
+  arvm_arena_block_t *head;
+} arvm_arena_t;
 
-void *arena_alloc(arena_t *arena, size_t count);
+void *arvm_arena_alloc(arvm_arena_t *arena, size_t count);
 
-void arena_free(arena_t *arena);
-#endif
+void arvm_arena_free(arvm_arena_t *arena);
+
+#endif /* ARENA_H */

@@ -1,8 +1,9 @@
 #include "analyze.h"
+#include "ir.h"
 #include <assert.h>
 #include <string.h>
 
-bool is_identical(const arvm_expr_t *a, const arvm_expr_t *b) {
+bool arvm_is_identical(const arvm_expr_t a, const arvm_expr_t b) {
   if (a == NULL || b == NULL)
     return false;
 
@@ -12,23 +13,23 @@ bool is_identical(const arvm_expr_t *a, const arvm_expr_t *b) {
   switch (a->kind) {
   case BINARY:
     return a->binary.op == b->binary.op &&
-           is_identical(a->binary.lhs, b->binary.lhs) &&
-           is_identical(a->binary.rhs, b->binary.rhs);
+           arvm_is_identical(a->binary.lhs, b->binary.lhs) &&
+           arvm_is_identical(a->binary.rhs, b->binary.rhs);
   case NARY: {
     if (a->nary.op != b->nary.op)
       return false;
 
-    size_t argc = a->nary.args.size;
-    if (b->nary.args.size != argc)
+    size_t operand_count = a->nary.operands.size;
+    if (b->nary.operands.size != operand_count)
       return false;
 
-    arvm_expr_t *args[argc];
-    memcpy(args, a->nary.args.exprs, sizeof(args));
-    for (int i = 0; i < argc; i++) {
-      arvm_expr_t *arg_b = b->nary.args.exprs[i];
-      for (int j = 0; j < argc; j++) {
-        if (is_identical(args[j], arg_b)) {
-          args[j] = NULL;
+    arvm_expr_t operands[operand_count];
+    memcpy(operands, a->nary.operands.exprs, sizeof(operands));
+    for (int i = 0; i < operand_count; i++) {
+      arvm_expr_t operands_b = b->nary.operands.exprs[i];
+      for (int j = 0; j < operand_count; j++) {
+        if (arvm_is_identical(operands[j], operands_b)) {
+          operands[j] = NULL;
           goto next;
         }
       }
@@ -41,10 +42,10 @@ bool is_identical(const arvm_expr_t *a, const arvm_expr_t *b) {
   case IN_INTERVAL:
     return a->in_interval.min == b->in_interval.min &&
            a->in_interval.max == b->in_interval.max &&
-           is_identical(a->in_interval.value, b->in_interval.value);
+           arvm_is_identical(a->in_interval.value, b->in_interval.value);
   case CALL:
-    return a->call.target == b->call.target &&
-           is_identical(a->call.arg, b->call.arg);
+    return a->call.func == b->call.func &&
+           arvm_is_identical(a->call.arg, b->call.arg);
   case CONST:
     return a->const_.value == b->const_.value;
   case ARG_REF:
@@ -56,17 +57,17 @@ bool is_identical(const arvm_expr_t *a, const arvm_expr_t *b) {
   }
 }
 
-bool has_calls(const arvm_expr_t *expr) {
+bool arvm_has_calls(const arvm_expr_t expr) {
   switch (expr->kind) {
   case BINARY:
-    return has_calls(expr->binary.lhs) || has_calls(expr->binary.rhs);
+    return arvm_has_calls(expr->binary.lhs) || arvm_has_calls(expr->binary.rhs);
   case NARY:
-    for (int i = 0; i < expr->nary.args.size; i++)
-      if (has_calls(expr->nary.args.exprs[i]))
+    for (int i = 0; i < expr->nary.operands.size; i++)
+      if (arvm_has_calls(expr->nary.operands.exprs[i]))
         return true;
     return false;
   case IN_INTERVAL:
-    return has_calls(expr->in_interval.value);
+    return arvm_has_calls(expr->in_interval.value);
   case CALL:
     return true;
   case CONST:
@@ -79,7 +80,7 @@ bool has_calls(const arvm_expr_t *expr) {
   }
 }
 
-bool intervals_overlap(const arvm_expr_t *a, const arvm_expr_t *b) {
+bool arvm_intervals_overlap(const arvm_expr_t a, const arvm_expr_t b) {
   assert(a->kind == IN_INTERVAL && b->kind == IN_INTERVAL);
   return a->in_interval.min <= b->in_interval.max &&
          b->in_interval.min <= a->in_interval.max;

@@ -1,41 +1,45 @@
-#include <analyze.h>
+#include <../src/analyze.h>
+#include <../src/builder.h>
+#include <../src/transform.h>
 #include <arvm.h>
-#include <builder.h>
-#include <transform.h>
 #include <unity.h>
 
-static arena_t arena = {sizeof(arvm_expr_t) * 16};
+static arvm_arena_t arena = {sizeof(struct arvm_expr) * 16};
 
 void setUp(void) {}
 
-void tearDown(void) { arena_free(&arena); }
+void tearDown(void) { arvm_arena_free(&arena); }
 
 void test_transpose(void) {
-  arvm_expr_t *what = make_expr(&arena, UNKNOWN);
-  arvm_expr_t *where = make_nary(&arena, ADD, 1, what);
-  transpose(&arena, what, where);
-  TEST_ASSERT(is_identical(where, what));
+  arvm_expr_t what = arvm_new_expr(&arena, UNKNOWN);
+  arvm_expr_t where = arvm_new_nary(&arena, ARVM_NARY_ADD, 1, what);
+  arvm_transpose(&arena, what, where);
+  TEST_ASSERT(arvm_is_identical(where, what));
 }
 
 void test_nary_remove(void) {
-  arvm_expr_t *arg = make_expr(&arena, UNKNOWN);
-  arvm_expr_t *nary = make_nary(&arena, ADD, 3, make_expr(&arena, UNKNOWN),
-                                make_const(&arena, 1), arg);
-  nary_remove(nary, arg);
+  arvm_expr_t operand = arvm_new_expr(&arena, UNKNOWN);
+  arvm_expr_t nary =
+      arvm_new_nary(&arena, ARVM_NARY_ADD, 3, arvm_new_expr(&arena, UNKNOWN),
+                    arvm_new_const(&arena, 1), operand);
+  arvm_nary_remove_operand(nary, operand);
   TEST_ASSERT(
-      is_identical(nary, make_nary(&arena, ADD, 2, make_expr(&arena, UNKNOWN),
-                                   make_const(&arena, 1))));
+      arvm_is_identical(nary, arvm_new_nary(&arena, ARVM_NARY_ADD, 2,
+                                            arvm_new_expr(&arena, UNKNOWN),
+                                            arvm_new_const(&arena, 1))));
 }
 
 void test_replace(void) {
-  arvm_expr_t *expr = make_nary(&arena, ADD, 3, make_const(&arena, 1),
-                                make_call(&arena, NULL, make_const(&arena, 1)),
-                                make_const(&arena, 3));
-  replace(&arena, expr, CONST(VAL(1)), make_const(&arena, 2));
-  TEST_ASSERT(is_identical(
-      expr, make_nary(&arena, ADD, 3, make_const(&arena, 2),
-                      make_call(&arena, NULL, make_const(&arena, 2)),
-                      make_const(&arena, 3))));
+  arvm_expr_t expr =
+      arvm_new_nary(&arena, ARVM_NARY_ADD, 3, arvm_new_const(&arena, 1),
+                    arvm_new_call(&arena, NULL, arvm_new_const(&arena, 1)),
+                    arvm_new_const(&arena, 3));
+  arvm_replace(&arena, expr, CONST(VAL(1)), arvm_new_const(&arena, 2));
+  TEST_ASSERT(arvm_is_identical(
+      expr,
+      arvm_new_nary(&arena, ARVM_NARY_ADD, 3, arvm_new_const(&arena, 2),
+                    arvm_new_call(&arena, NULL, arvm_new_const(&arena, 2)),
+                    arvm_new_const(&arena, 3))));
 }
 
 int main(void) {
