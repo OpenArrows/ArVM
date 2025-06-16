@@ -1,8 +1,9 @@
-#include <../src/analyze.h>
-#include <../src/builder.h>
-#include <../src/opt.h>
 #include <arvm.h>
+#include <ir/analyze.h>
+#include <ir/builder.h>
+#include <ir/opt.h>
 #include <unity.h>
+
 
 static arvm_arena_t arena = {sizeof(struct arvm_expr) * 16};
 
@@ -59,8 +60,8 @@ void test_normalize_interval(void) {
       0, ARVM_POSITIVE_INFINITY)};
   arvm_optimize_func(&func, &arena, &arena);
 
-  arvm_expr_t exp = arvm_new_in_interval(
-      &arena, arvm_new_expr(&arena, UNKNOWN), 2, ARVM_POSITIVE_INFINITY);
+  arvm_expr_t exp = arvm_new_in_interval(&arena, arvm_new_expr(&arena, UNKNOWN),
+                                         2, ARVM_POSITIVE_INFINITY);
 
   TEST_ASSERT(arvm_is_identical(func.value, exp));
 }
@@ -100,8 +101,8 @@ void test_merge_intervals(void) {
 
 void test_annulment_law(void) {
   struct arvm_func func = {arvm_new_nary(&arena, ARVM_NARY_AND, 2,
-                                    arvm_new_expr(&arena, UNKNOWN),
-                                    arvm_new_const(&arena, 0))};
+                                         arvm_new_expr(&arena, UNKNOWN),
+                                         arvm_new_const(&arena, 0))};
   arvm_optimize_func(&func, &arena, &arena);
 
   arvm_expr_t exp = arvm_new_const(&arena, 0);
@@ -111,8 +112,8 @@ void test_annulment_law(void) {
 
 void test_identity_law(void) {
   struct arvm_func func = {arvm_new_nary(&arena, ARVM_NARY_OR, 2,
-                                    arvm_new_expr(&arena, UNKNOWN),
-                                    arvm_new_const(&arena, 0))};
+                                         arvm_new_expr(&arena, UNKNOWN),
+                                         arvm_new_const(&arena, 0))};
   arvm_optimize_func(&func, &arena, &arena);
 
   arvm_expr_t exp = arvm_new_expr(&arena, UNKNOWN);
@@ -122,8 +123,8 @@ void test_identity_law(void) {
 
 void test_idempotent_law(void) {
   struct arvm_func func = {arvm_new_nary(&arena, ARVM_NARY_AND, 2,
-                                    arvm_new_expr(&arena, UNKNOWN),
-                                    arvm_new_expr(&arena, UNKNOWN))};
+                                         arvm_new_expr(&arena, UNKNOWN),
+                                         arvm_new_expr(&arena, UNKNOWN))};
   arvm_optimize_func(&func, &arena, &arena);
 
   arvm_expr_t exp = arvm_new_expr(&arena, UNKNOWN);
@@ -216,8 +217,7 @@ void test_short_circuit(void) {
                     arvm_new_expr(&arena, UNKNOWN))};
   arvm_optimize_func(&func, &arena, &arena);
 
-  arvm_expr_t exp =
-      arvm_new_call(&arena, NULL, arvm_new_expr(&arena, UNKNOWN));
+  arvm_expr_t exp = arvm_new_call(&arena, NULL, arvm_new_expr(&arena, UNKNOWN));
 
   TEST_ASSERT(arvm_is_identical(func.value->nary.operands.exprs[1], exp));
 }

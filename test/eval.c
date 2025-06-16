@@ -1,7 +1,8 @@
-#include <../src/builder.h>
-#include <../src/eval.h>
 #include <arvm.h>
+#include <eval.h>
+#include <ir/builder.h>
 #include <unity.h>
+
 
 static arvm_arena_t arena = {sizeof(struct arvm_expr) * 16};
 
@@ -50,7 +51,7 @@ void test_eval_in_interval(void) {
 }
 
 void test_eval_call(void) {
-  arvm_func_t func = {arvm_new_nary(&arena, ARVM_NARY_ADD, 2,
+  struct arvm_func func = {arvm_new_nary(&arena, ARVM_NARY_ADD, 2,
                                     arvm_new_arg_ref(&arena),
                                     arvm_new_const(&arena, 1))};
 

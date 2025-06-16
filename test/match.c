@@ -1,6 +1,6 @@
-#include <../src/analyze.h>
-#include <../src/builder.h>
-#include <../src/match.h>
+#include <ir/analyze.h>
+#include <ir/builder.h>
+#include <ir/match.h>
 #include <arvm.h>
 #include <unity.h>
 

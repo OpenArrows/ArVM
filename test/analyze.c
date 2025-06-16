@@ -1,6 +1,6 @@
-#include <../src/analyze.h>
-#include <../src/ir.h>
 #include <arvm.h>
+#include <ir/analyze.h>
+#include <ir/ir.h>
 #include <unity.h>
 
 void setUp(void) {}

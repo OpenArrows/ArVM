@@ -1,9 +1,9 @@
 #include "arvm.h"
 #include "arena.h"
-#include "builder.h"
 #include "eval.h"
-#include "ir.h"
-#include "opt.h"
+#include "ir/builder.h"
+#include "ir/ir.h"
+#include "ir/opt.h"
 #include <stdarg.h>
 #include <stdlib.h>
 
@@ -40,7 +40,7 @@ void arvm_release_context(arvm_ctx_t ctx) {
 }
 
 arvm_func_t arvm_create_function(arvm_ctx_t ctx, arvm_expr_t value) {
-  arvm_func_t func = arvm_arena_alloc(&ctx->func_arena, value);
+  arvm_func_t func = arvm_arena_alloc(&ctx->func_arena, sizeof(struct arvm_func));
   *func = (struct arvm_func){value};
   return func;
 }

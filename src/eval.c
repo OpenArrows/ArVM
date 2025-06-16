@@ -1,5 +1,5 @@
 #include "eval.h"
-#include "ir.h"
+#include "ir/ir.h"
 #include <stddef.h>
 
 typedef struct eval_ctx {

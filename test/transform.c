@@ -1,7 +1,7 @@
-#include <../src/analyze.h>
-#include <../src/builder.h>
-#include <../src/transform.h>
 #include <arvm.h>
+#include <ir/analyze.h>
+#include <ir/builder.h>
+#include <ir/transform.h>
 #include <unity.h>
 
 static arvm_arena_t arena = {sizeof(struct arvm_expr) * 16};
