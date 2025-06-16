@@ -2,7 +2,6 @@
 #include "analyze.h"
 #include "builder.h"
 #include "eval.h"
-#include "imath.h"
 #include "transform.h"
 #include "visit.h"
 #include <stdbool.h>
@@ -95,10 +94,10 @@ static void optimize_visitor(arvm_expr_t expr, void *ctx_) {
                                       ANYVAL(), ANYVAL()))) {
           arvm_nary_remove_operand(nary, const_);
           arvm_visit(nary, optimize_visitor, ctx);
-          expr->in_interval.min =
-              iadd(expr->in_interval.min, -const_->const_.value);
-          expr->in_interval.max =
-              iadd(expr->in_interval.max, -const_->const_.value);
+          if (expr->in_interval.min != ARVM_NEGATIVE_INFINITY)
+            expr->in_interval.min -= const_->const_.value;
+          if (expr->in_interval.max != ARVM_POSITIVE_INFINITY)
+            expr->in_interval.max -= const_->const_.value;
         }
       }
 
@@ -124,16 +123,16 @@ static void optimize_visitor(arvm_expr_t expr, void *ctx_) {
                            arvm_nary_remove_operand(expr, b);
                            switch (expr->nary.op) {
                            case ARVM_NARY_OR:
-                             a->in_interval.min =
-                                 imin(a->in_interval.min, b->in_interval.min);
-                             a->in_interval.max =
-                                 imax(a->in_interval.max, b->in_interval.max);
+                             if (b->in_interval.min < a->in_interval.min)
+                               a->in_interval.min = b->in_interval.min;
+                             if (b->in_interval.max > a->in_interval.max)
+                               a->in_interval.max = b->in_interval.max;
                              break;
                            case ARVM_NARY_AND:
-                             a->in_interval.min =
-                                 imax(a->in_interval.min, b->in_interval.min);
-                             a->in_interval.max =
-                                 imin(a->in_interval.max, b->in_interval.max);
+                             if (b->in_interval.min > a->in_interval.min)
+                               a->in_interval.min = b->in_interval.min;
+                             if (b->in_interval.max < a->in_interval.max)
+                               a->in_interval.max = b->in_interval.max;
                              break;
                            default:
                              unreachable();
