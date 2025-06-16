@@ -2,7 +2,6 @@
 #define MATCH_H
 
 #include "arvm.h"
-#include "iterators.h"
 #include <stdbool.h>
 #include <stddef.h>
 
@@ -78,7 +77,7 @@ struct pattern {
     struct {
       val_pattern_t *op;
       patternlist_t operands;
-      perm_iter_t perm_it;
+      size_t *cycles;
     } nary;
     struct {
       val_pattern_t *op;
@@ -152,7 +151,7 @@ struct pattern {
 
 bool val_matches(arvm_val_t val, val_pattern_t *pattern);
 
-void match_init(pattern_t *pattern);
+void match_reset(pattern_t *pattern);
 
 bool match_next(pattern_t *pattern, arvm_expr_t expr);
 
@@ -164,7 +163,7 @@ bool matches(arvm_expr_t expr, pattern_t *pattern);
 #define FOR_EACH_MATCH(expr, pattern, block)                                   \
   do {                                                                         \
     pattern_t *_pattern = pattern;                                             \
-    match_init(_pattern);                                                      \
+    match_reset(_pattern);                                                     \
                                                                                \
     size_t slot_count = 0, val_slot_count = 0;                                 \
     find_slots(_pattern, NULL, &slot_count, NULL, &val_slot_count);            \
@@ -192,6 +191,8 @@ bool matches(arvm_expr_t expr, pattern_t *pattern);
                                                                                \
     _skip:;                                                                    \
     }                                                                          \
+                                                                               \
+    match_reset(_pattern);                                                     \
   } while (0);
 
 #endif /* MATCH_H */

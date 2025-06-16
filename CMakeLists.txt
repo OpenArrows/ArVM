@@ -9,7 +9,7 @@ add_library(arvm STATIC
     src/eval.c src/builder.c src/opt.c src/analyze.c
     src/asm.c src/xbuf.c
     src/transform.c src/match.c src/visit.c src/arena.c
-    src/iterators.c src/imath.c
+    src/imath.c
 )
 set_property(TARGET arvm PROPERTY C_STANDARD 23)
 target_include_directories(arvm PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)

@@ -6,24 +6,28 @@
 #include <stdlib.h>
 #include <string.h>
 
-void match_init(pattern_t *pattern) {
+void match_reset(pattern_t *pattern) {
   pattern->match = NULL;
   switch (pattern->kind) {
+  case EXPR_BINARY:
+    match_reset(pattern->binary.lhs);
+    match_reset(pattern->binary.rhs);
+    break;
   case EXPR_NARY_FIXED:
   case EXPR_NARY:
-    free(pattern->nary.perm_it.cycles);
-    pattern->nary.perm_it.cycles = NULL;
+    free(pattern->nary.cycles);
+    pattern->nary.cycles = NULL;
     for (size_t i = 0; i < pattern->nary.operands.size; i++)
-      match_init(pattern->nary.operands.patterns[i]);
+      match_reset(pattern->nary.operands.patterns[i]);
     break;
   case EXPR_NARY_EACH:
-    match_init(pattern->nary_each.arg);
+    match_reset(pattern->nary_each.arg);
     break;
   case EXPR_IN_INTERVAL:
-    match_init(pattern->in_interval.value);
+    match_reset(pattern->in_interval.value);
     break;
   case EXPR_CALL:
-    match_init(pattern->call.arg);
+    match_reset(pattern->call.arg);
     break;
   default:
     break;
@@ -47,7 +51,7 @@ bool match_next(pattern_t *pattern, arvm_expr_t expr) {
         return false;
     } else {
       if (!match_next(pattern->binary.lhs, expr->binary.lhs)) {
-        match_init(pattern->binary.lhs);
+        match_reset(pattern->binary.lhs);
         match_next(pattern->binary.lhs, expr->binary.lhs);
         if (!match_next(pattern->binary.rhs, expr->binary.rhs))
           return false;
@@ -63,32 +67,44 @@ bool match_next(pattern_t *pattern, arvm_expr_t expr) {
           expr->nary.operands.size >= pattern->nary.operands.size &&
           val_matches(expr->nary.op, pattern->nary.op)))
       return false;
-    do {
-      if (!pattern->match) {
+    for (;;) {
+      for (size_t i = 0; i < pattern->nary.operands.size; i++)
+        if (!match_next(pattern->nary.operands.patterns[i],
+                        expr->nary.operands.exprs[i]))
+          goto nary_match_failure;
+      goto nary_matched;
+
+    nary_match_failure:
+      for (size_t i = 0; i < pattern->nary.operands.size; i++)
+        match_reset(pattern->nary.operands.patterns[i]);
+
+      if (!pattern->nary.cycles) {
+        pattern->nary.cycles =
+            malloc(sizeof(size_t) * pattern->nary.operands.size);
         for (size_t i = 0; i < pattern->nary.operands.size; i++)
-          if (!match_next(pattern->nary.operands.patterns[i],
-                          expr->nary.operands.exprs[i]))
-            goto nary_match_failure;
-        goto nary_matched;
-      } else {
-        for (size_t i = 0; i < pattern->nary.operands.size; i++)
-          if (match_next(pattern->nary.operands.patterns[i],
-                         expr->nary.operands.exprs[i])) {
-            goto nary_matched;
-          } else {
-            match_init(pattern->nary.operands.patterns[i]);
-            match_next(pattern->nary.operands.patterns[i],
-                       expr->nary.operands.exprs[i]);
-          }
-      nary_match_failure:
-        pattern->nary.perm_it.array = expr->nary.operands.exprs;
-        pattern->nary.perm_it.length = expr->nary.operands.size;
-        pattern->nary.perm_it.size = sizeof(arvm_expr_t *);
-        pattern->nary.perm_it.permutation_length = pattern->nary.operands.size;
-        for (size_t i = 0; i < pattern->nary.operands.size; i++)
-          match_init(pattern->nary.operands.patterns[i]);
+          pattern->nary.cycles[i] = expr->nary.operands.size - i;
       }
-    } while (permutation(&pattern->nary.perm_it));
+
+      for (size_t i = pattern->nary.operands.size; i-- > 0;) {
+        pattern->nary.cycles[i]--;
+        arvm_expr_t operand = expr->nary.operands.exprs[i];
+        if (pattern->nary.cycles[i] == 0) {
+          memcpy(&expr->nary.operands.exprs[i],
+                 &expr->nary.operands.exprs[i + 1],
+                 (expr->nary.operands.size - i) * sizeof(arvm_expr_t));
+          expr->nary.operands.exprs[expr->nary.operands.size - 1] = operand;
+          pattern->nary.cycles[i] = expr->nary.operands.size - i;
+        } else {
+          size_t j = expr->nary.operands.size - pattern->nary.cycles[i];
+          expr->nary.operands.exprs[i] = expr->nary.operands.exprs[j];
+          expr->nary.operands.exprs[j] = operand;
+          goto perm_next;
+        }
+      }
+      break;
+    perm_next:
+      continue;
+    }
     return false;
   nary_matched:
     break;
@@ -201,7 +217,7 @@ void find_slots(pattern_t *pattern, pattern_t **slots, size_t *slot_count,
 }
 
 bool matches(arvm_expr_t expr, pattern_t *pattern) {
-  match_init(pattern);
+  match_reset(pattern);
 
   size_t slot_count = 0, val_slot_count = 0;
   find_slots(pattern, NULL, &slot_count, NULL, &val_slot_count);
@@ -227,8 +243,11 @@ bool matches(arvm_expr_t expr, pattern_t *pattern) {
           goto skip;
     }
 
+    match_reset(pattern);
     return true;
   skip:;
   }
+
+  match_reset(pattern);
   return false;
 }
