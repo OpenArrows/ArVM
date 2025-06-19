@@ -1,9 +1,9 @@
 #ifndef BUILDER_H
 #define BUILDER_H
 
-#include "arena.h"
 #include "arvm.h"
 #include "ir.h"
+#include "util/arena.h"
 #include <stdarg.h>
 
 arvm_expr_t arvm_new_expr(arvm_arena_t *arena, arvm_expr_kind_t kind);

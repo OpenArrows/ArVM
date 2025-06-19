@@ -8,7 +8,7 @@ project(ArVM
 add_library(arvm STATIC
     src/arvm.c
 
-    src/arena.c
+    src/util/arena.c
 
     src/ir/builder.c
     src/ir/analyze.c
@@ -19,8 +19,9 @@ add_library(arvm STATIC
 
     src/eval.c
 
-    src/codegen/asm.c
-    src/codegen/xbuf.c
+    # src/codegen/xalloc.c
+    # src/codegen/codegen.c
+    # src/codegen/arch/x86.c
 )
 set_property(TARGET arvm PROPERTY C_STANDARD 23)
 target_include_directories(arvm PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
