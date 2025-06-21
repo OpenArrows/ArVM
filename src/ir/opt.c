@@ -22,6 +22,7 @@ struct opt_ctx {
 static void optimize_visitor(arvm_expr_t expr, void *ctx_) {
   opt_ctx_t *ctx = ctx_;
 
+  /*
   arvm_expr_t prev;
   do {
     prev = arvm_clone(ctx->tmp_arena, expr);
@@ -89,21 +90,21 @@ static void optimize_visitor(arvm_expr_t expr, void *ctx_) {
       {
         // Interval normalization (move const to RHS)
         arvm_expr_t nary, const_;
-        if (matches(expr, IN_INTERVAL(NARY_AS(nary, VAL(ARVM_NARY_ADD),
+        if (matches(expr, IN_INTERVAL(NARY_AS(nary, VAL(ARVM_NARY_TH2),
                                               CONST_AS(const_, ANYVAL())),
                                       ANYVAL(), ANYVAL()))) {
           arvm_nary_remove_operand(nary, const_);
           arvm_visit(nary, optimize_visitor, ctx);
-          if (expr->in_interval.min != ARVM_NEGATIVE_INFINITY)
-            expr->in_interval.min -= const_->const_.value;
-          if (expr->in_interval.max != ARVM_POSITIVE_INFINITY)
-            expr->in_interval.max -= const_->const_.value;
+          if (expr->range.min != ARVM_NEGATIVE_INFINITY)
+            expr->range.min -= const_->const_.value;
+          if (expr->range.max != ARVM_POSITIVE_INFINITY)
+            expr->range.max -= const_->const_.value;
         }
       }
 
       {
         // Compile-time interval evaluation
-        if (matches(expr, IN_INTERVAL(CONST(ANYVAL()), ANYVAL(), ANYVAL()))) {
+        if (matches(expr, RANGE(CONST(ANYVAL()), ANYVAL(), ANYVAL()))) {
           arvm_val_t result = arvm_eval_expr(expr);
           struct arvm_expr const_ = {CONST, .const_ = {result}};
           arvm_transpose(ctx->arena, &const_, expr);
@@ -116,23 +117,23 @@ static void optimize_visitor(arvm_expr_t expr, void *ctx_) {
         arvm_expr_t a, b;
         FOR_EACH_MATCH(expr,
                        NARY(VAL(ARVM_NARY_OR, ARVM_NARY_AND),
-                            IN_INTERVAL_AS(a, SLOT(), ANYVAL(), ANYVAL()),
-                            IN_INTERVAL_AS(b, SLOT(), ANYVAL(), ANYVAL())),
+                            RANGE_AS(a, SLOT(), ANYVAL(), ANYVAL()),
+                            RANGE_AS(b, SLOT(), ANYVAL(), ANYVAL())),
                        {
-                         if (arvm_intervals_overlap(a, b)) {
+                         if (arvm_ranges_overlap(a, b)) {
                            arvm_nary_remove_operand(expr, b);
                            switch (expr->nary.op) {
                            case ARVM_NARY_OR:
-                             if (b->in_interval.min < a->in_interval.min)
-                               a->in_interval.min = b->in_interval.min;
-                             if (b->in_interval.max > a->in_interval.max)
-                               a->in_interval.max = b->in_interval.max;
+                             if (b->range.min < a->range.min)
+                               a->range.min = b->range.min;
+                             if (b->range.max > a->range.max)
+                               a->range.max = b->range.max;
                              break;
                            case ARVM_NARY_AND:
-                             if (b->in_interval.min > a->in_interval.min)
-                               a->in_interval.min = b->in_interval.min;
-                             if (b->in_interval.max < a->in_interval.max)
-                               a->in_interval.max = b->in_interval.max;
+                             if (b->range.min > a->range.min)
+                               a->range.min = b->range.min;
+                             if (b->range.max < a->range.max)
+                               a->range.max = b->range.max;
                              break;
                            default:
                              unreachable();
@@ -241,11 +242,11 @@ static void optimize_visitor(arvm_expr_t expr, void *ctx_) {
           arvm_replace(ctx->tmp_arena, func_val, ARG_REF(), expr->call.arg);
           arvm_transpose(
               ctx->arena,
-              arvm_new_nary(ctx->tmp_arena, ARVM_NARY_AND, 2, func_val,
-                            arvm_new_in_interval(
-                                ctx->tmp_arena,
-                                arvm_clone(ctx->tmp_arena, expr->call.arg), 1,
-                                ARVM_POSITIVE_INFINITY)),
+              arvm_new_nary(
+                  ctx->tmp_arena, ARVM_NARY_AND, 2, func_val,
+                  arvm_new_range(ctx->tmp_arena,
+                                 arvm_clone(ctx->tmp_arena, expr->call.arg), 1,
+                                 ARVM_POSITIVE_INFINITY)),
               expr);
 
           arvm_visit(expr, optimize_visitor,
@@ -263,22 +264,22 @@ static void optimize_visitor(arvm_expr_t expr, void *ctx_) {
                 expr,
                 NARY_FIXED(
                     VAL(ARVM_NARY_OR),
-                    IN_INTERVAL_AS(base, ARG_REF(), SLOTVAL(), SLOTVAL()),
+                    RANGE_AS(base, ARG_REF(), SLOTVAL(), SLOTVAL()),
                     NARY_FIXED_AS(
                         call_nary, VAL(ARVM_NARY_AND),
                         CALL(VAL((arvm_val_t)ctx->func),
                              NARY_FIXED(
-                                 VAL(ARVM_NARY_ADD), ARG_REF(),
+                                 VAL(ARVM_NARY_TH2), ARG_REF(),
                                  CONST_AS(step, RANGEVAL(ARVM_NEGATIVE_INFINITY,
                                                          -1)))),
-                        IN_INTERVAL_AS(condition, ARG_REF(), SLOTVAL(),
-                                       VAL(ARVM_POSITIVE_INFINITY)))))) {
+                        RANGE_AS(condition, ARG_REF(), SLOTVAL(),
+                                 VAL(ARVM_POSITIVE_INFINITY)))))) {
           expr->nary.op = ARVM_NARY_AND;
-          base->in_interval.value = arvm_new_binary(
-              ctx->arena, ARVM_BINARY_MOD, base->in_interval.value,
-              arvm_new_const(ctx->arena, -step->const_.value));
-          base->in_interval.min = base->in_interval.max =
-              base->in_interval.min % -step->const_.value;
+          base->range.value =
+              arvm_new_binary(ctx->arena, ARVM_BINARY_MOD, base->range.value,
+                              arvm_new_const(ctx->arena, -step->const_.value));
+          base->range.min = base->range.max =
+              base->range.min % -step->const_.value;
           arvm_transpose(ctx->arena, condition, call_nary);
         }
       }
@@ -286,6 +287,7 @@ static void optimize_visitor(arvm_expr_t expr, void *ctx_) {
 
   } while (!arvm_is_identical(
       prev, expr)); // Repeat optimizations until no transformation is applied
+  */
 
   if (expr->kind == NARY) {
     // Sort n-ary operands to allow short-circuit evaluation

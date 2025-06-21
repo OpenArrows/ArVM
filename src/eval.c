@@ -1,5 +1,6 @@
 #include "eval.h"
 #include "ir/ir.h"
+#include <stdbool.h>
 #include <stddef.h>
 
 typedef struct eval_ctx {
@@ -8,70 +9,58 @@ typedef struct eval_ctx {
 
 static arvm_val_t eval_expr(arvm_expr_t expr, eval_ctx_t ctx) {
   switch (expr->kind) {
-  case BINARY:
-    switch (expr->binary.op) {
-    case ARVM_BINARY_MOD:
-      return eval_expr(expr->binary.lhs, ctx) %
-             eval_expr(expr->binary.rhs, ctx);
-    default:
-      unreachable();
-    }
-    break;
   case NARY:
     switch (expr->nary.op) {
-    case ARVM_NARY_OR: {
-      for (int i = 0; i < expr->nary.operands.size; i++) {
+    case ARVM_OP_OR:
+      for (size_t i = 0; i < expr->nary.operands.size; i++) {
         if (eval_expr(expr->nary.operands.exprs[i], ctx))
           return ARVM_TRUE;
       }
       return ARVM_FALSE;
-    }
-    case ARVM_NARY_AND: {
-      for (int i = 0; i < expr->nary.operands.size; i++) {
-        if (!eval_expr(expr->nary.operands.exprs[i], ctx))
+    case ARVM_OP_NOR:
+      for (size_t i = 0; i < expr->nary.operands.size; i++) {
+        if (eval_expr(expr->nary.operands.exprs[i], ctx))
           return ARVM_FALSE;
       }
       return ARVM_TRUE;
-    }
-    case ARVM_NARY_XOR: {
+    case ARVM_OP_XOR: {
       arvm_val_t accum = ARVM_FALSE;
-      for (int i = 0; i < expr->nary.operands.size; i++) {
+      for (size_t i = 0; i < expr->nary.operands.size; i++) {
         accum = accum != eval_expr(expr->nary.operands.exprs[i], ctx);
       }
       return accum;
     }
-    case ARVM_NARY_ADD: {
-      arvm_val_t accum = 0;
-      for (int i = 0; i < expr->nary.operands.size; i++) {
-        accum += eval_expr(expr->nary.operands.exprs[i], ctx);
+    case ARVM_OP_TH2: {
+      bool has_true = false;
+      for (size_t i = 0; i < expr->nary.operands.size; i++) {
+        if (i == expr->nary.operands.size - 1 && !has_true)
+          return ARVM_FALSE;
+        if (eval_expr(expr->nary.operands.exprs[i], ctx)) {
+          if (has_true)
+            return ARVM_TRUE;
+          else
+            has_true = true;
+        }
       }
-      return accum;
+      return ARVM_FALSE;
     }
     default:
       unreachable();
     }
     break;
-  case IN_INTERVAL: {
-    arvm_val_t value = eval_expr(expr->in_interval.value, ctx);
-    return value >= expr->in_interval.min && value <= expr->in_interval.max;
-  }
-  case ARG_REF:
-    return ctx.arg;
+  case RANGE:
+    return ctx.arg >= expr->range.min && ctx.arg <= expr->range.max;
+  case MODEQ:
+    return ctx.arg % expr->modeq.divisor == expr->modeq.residue;
   case CALL:
-    return arvm_eval(expr->call.func, eval_expr(expr->call.arg, ctx));
-  case CONST:
-    return expr->const_.value;
+    return arvm_eval(expr->call.func, ctx.arg > expr->call.offset
+                                          ? ctx.arg - expr->call.offset
+                                          : 0);
   default:
     unreachable();
   }
 }
 
-arvm_val_t arvm_eval_expr(arvm_expr_t expr) {
-  return eval_expr(expr, (eval_ctx_t){0});
-}
-
 arvm_val_t arvm_eval(arvm_func_t func, arvm_val_t arg) {
-  if (arg <= 0)
-    return ARVM_FALSE;
   return eval_expr(func->value, (eval_ctx_t){arg});
 }

@@ -11,35 +11,45 @@ void setUp(void) {}
 void tearDown(void) { arvm_arena_free(&arena); }
 
 void test_transpose(void) {
-  arvm_expr_t what = arvm_new_expr(&arena, UNKNOWN);
-  arvm_expr_t where = arvm_new_nary(&arena, ARVM_NARY_ADD, 1, what);
-  arvm_transpose(&arena, what, where);
-  TEST_ASSERT(arvm_is_identical(where, what));
+  arvm_expr_t exprs[] = {
+      arvm_new_range(&arena, 0, 10),
+      arvm_new_modeq(&arena, 2, 1),
+      arvm_new_nary(&arena, ARVM_OP_XOR, 2, arvm_new_range(&arena, 0, 1),
+                    arvm_new_range(&arena, 1, 2)),
+      arvm_new_call(&arena, &(struct arvm_func){NULL}, 1),
+  };
+
+  for (size_t i = 0; i < lengthof(exprs); i++)
+    for (size_t j = 0; j < lengthof(exprs); j++) {
+      arvm_expr_t what = exprs[i];
+      arvm_expr_t where = exprs[j];
+      arvm_transpose(&arena, what, where);
+      TEST_ASSERT(arvm_is_identical(where, what));
+    }
 }
 
 void test_nary_remove(void) {
-  arvm_expr_t operand = arvm_new_expr(&arena, UNKNOWN);
-  arvm_expr_t nary =
-      arvm_new_nary(&arena, ARVM_NARY_ADD, 3, arvm_new_expr(&arena, UNKNOWN),
-                    arvm_new_const(&arena, 1), operand);
+  arvm_expr_t operand = arvm_new_range(&arena, 1, 2);
+  arvm_expr_t nary = arvm_new_nary(&arena, ARVM_OP_OR, 2,
+                                   arvm_new_range(&arena, 0, 1), operand);
   arvm_nary_remove_operand(nary, operand);
   TEST_ASSERT(
-      arvm_is_identical(nary, arvm_new_nary(&arena, ARVM_NARY_ADD, 2,
-                                            arvm_new_expr(&arena, UNKNOWN),
-                                            arvm_new_const(&arena, 1))));
+      arvm_is_identical(nary, arvm_new_nary(&arena, ARVM_OP_OR, 1,
+                                            arvm_new_range(&arena, 0, 1))));
 }
 
 void test_replace(void) {
   arvm_expr_t expr =
-      arvm_new_nary(&arena, ARVM_NARY_ADD, 3, arvm_new_const(&arena, 1),
-                    arvm_new_call(&arena, NULL, arvm_new_const(&arena, 1)),
-                    arvm_new_const(&arena, 3));
-  arvm_replace(&arena, expr, CONST(VAL(1)), arvm_new_const(&arena, 2));
+      arvm_new_nary(&arena, ARVM_OP_XOR, 4, arvm_new_range(&arena, 0, 1),
+                    arvm_new_range(&arena, 1, 2), arvm_new_range(&arena, 0, 2),
+                    arvm_new_modeq(&arena, 3, 2));
+  arvm_replace(&arena, expr, RANGE(ANYVAL(), VAL(2)),
+               arvm_new_range(&arena, 2, 3));
   TEST_ASSERT(arvm_is_identical(
       expr,
-      arvm_new_nary(&arena, ARVM_NARY_ADD, 3, arvm_new_const(&arena, 2),
-                    arvm_new_call(&arena, NULL, arvm_new_const(&arena, 2)),
-                    arvm_new_const(&arena, 3))));
+      arvm_new_nary(&arena, ARVM_OP_XOR, 4, arvm_new_range(&arena, 0, 1),
+                    arvm_new_range(&arena, 2, 3), arvm_new_range(&arena, 2, 3),
+                    arvm_new_modeq(&arena, 3, 2))));
 }
 
 int main(void) {

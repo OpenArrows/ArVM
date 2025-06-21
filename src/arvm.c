@@ -63,11 +63,6 @@ arvm_val_t arvm_call_function(arvm_func_t func, arvm_val_t arg) {
   return arvm_eval(func, arg);
 }
 
-arvm_expr_t arvm_make_binary(arvm_ctx_t ctx, arvm_binary_op_t op,
-                             arvm_expr_t lhs, arvm_expr_t rhs) {
-  return arvm_new_binary(&ctx->expr_arena, op, lhs, rhs);
-}
-
 arvm_expr_t arvm_make_nary(arvm_ctx_t ctx, arvm_nary_op_t op,
                            size_t operand_count, ...) {
   va_list args;
@@ -77,19 +72,16 @@ arvm_expr_t arvm_make_nary(arvm_ctx_t ctx, arvm_nary_op_t op,
   return nary;
 }
 
-arvm_expr_t arvm_make_in_interval(arvm_ctx_t ctx, arvm_expr_t value,
-                                  arvm_val_t min, arvm_val_t max) {
-  return arvm_new_in_interval(&ctx->expr_arena, value, min, max);
+arvm_expr_t arvm_make_range(arvm_ctx_t ctx, arvm_val_t min, arvm_val_t max) {
+  return arvm_new_range(&ctx->expr_arena, min, max);
 }
 
-arvm_expr_t arvm_make_arg_ref(arvm_ctx_t ctx) {
-  return arvm_new_arg_ref(&ctx->expr_arena);
+arvm_expr_t arvm_make_modeq(arvm_ctx_t ctx, arvm_val_t divisor,
+                            arvm_val_t residue) {
+  return arvm_new_modeq(&ctx->expr_arena, divisor, residue);
 }
 
-arvm_expr_t arvm_make_call(arvm_ctx_t ctx, arvm_func_t func, arvm_expr_t arg) {
-  return arvm_new_call(&ctx->expr_arena, func, arg);
-}
-
-arvm_expr_t arvm_make_const(arvm_ctx_t ctx, arvm_val_t value) {
-  return arvm_new_const(&ctx->expr_arena, value);
+arvm_expr_t arvm_make_call(arvm_ctx_t ctx, arvm_func_t func,
+                           arvm_val_t offset) {
+  return arvm_new_call(&ctx->expr_arena, func, offset);
 }

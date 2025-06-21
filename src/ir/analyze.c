@@ -11,10 +11,6 @@ bool arvm_is_identical(const arvm_expr_t a, const arvm_expr_t b) {
     return false;
 
   switch (a->kind) {
-  case BINARY:
-    return a->binary.op == b->binary.op &&
-           arvm_is_identical(a->binary.lhs, b->binary.lhs) &&
-           arvm_is_identical(a->binary.rhs, b->binary.rhs);
   case NARY: {
     if (a->nary.op != b->nary.op)
       return false;
@@ -39,16 +35,13 @@ bool arvm_is_identical(const arvm_expr_t a, const arvm_expr_t b) {
     }
     return true;
   }
-  case IN_INTERVAL:
-    return a->in_interval.min == b->in_interval.min &&
-           a->in_interval.max == b->in_interval.max &&
-           arvm_is_identical(a->in_interval.value, b->in_interval.value);
+  case RANGE:
+    return a->range.min == b->range.min && a->range.max == b->range.max;
+  case MODEQ:
+    return a->modeq.divisor == b->modeq.divisor &&
+           a->modeq.residue == b->modeq.residue;
   case CALL:
-    return a->call.func == b->call.func &&
-           arvm_is_identical(a->call.arg, b->call.arg);
-  case CONST:
-    return a->const_.value == b->const_.value;
-  case ARG_REF:
+    return a->call.func == b->call.func && a->call.offset == b->call.offset;
   case NONE:
   case UNKNOWN:
     return true;
@@ -59,29 +52,18 @@ bool arvm_is_identical(const arvm_expr_t a, const arvm_expr_t b) {
 
 bool arvm_has_calls(const arvm_expr_t expr) {
   switch (expr->kind) {
-  case BINARY:
-    return arvm_has_calls(expr->binary.lhs) || arvm_has_calls(expr->binary.rhs);
+  case CALL:
+    return true;
   case NARY:
     for (int i = 0; i < expr->nary.operands.size; i++)
       if (arvm_has_calls(expr->nary.operands.exprs[i]))
         return true;
-    return false;
-  case IN_INTERVAL:
-    return arvm_has_calls(expr->in_interval.value);
-  case CALL:
-    return true;
-  case CONST:
-  case ARG_REF:
-  case NONE:
-  case UNKNOWN:
-    return false;
   default:
-    unreachable();
+    return false;
   }
 }
 
-bool arvm_intervals_overlap(const arvm_expr_t a, const arvm_expr_t b) {
-  assert(a->kind == IN_INTERVAL && b->kind == IN_INTERVAL);
-  return a->in_interval.min <= b->in_interval.max &&
-         b->in_interval.min <= a->in_interval.max;
+bool arvm_ranges_overlap(const arvm_expr_t a, const arvm_expr_t b) {
+  assert(a->kind == RANGE && b->kind == RANGE);
+  return a->range.min <= b->range.max && b->range.min <= a->range.max;
 }

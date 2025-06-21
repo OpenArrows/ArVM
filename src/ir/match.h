@@ -2,6 +2,7 @@
 #define MATCH_H
 
 #include "arvm.h"
+#include "util/macros.h"
 #include <stdbool.h>
 #include <stddef.h>
 
@@ -32,7 +33,7 @@ typedef struct val_pattern {
 } val_pattern_t;
 
 #define VAL_LIST(...)                                                          \
-  ((vallist_t){sizeof((arvm_val_t[]){__VA_ARGS__}) / sizeof(arvm_val_t),       \
+  ((vallist_t){(lengthof((arvm_val_t[]){__VA_ARGS__})),                        \
                (arvm_val_t[]){__VA_ARGS__}})
 
 #define ANYVAL() (&(val_pattern_t){VAL_ANY})
@@ -54,14 +55,11 @@ typedef struct pattern_list {
 typedef enum pattern_kind {
   EXPR_ANY,
   EXPR_SLOT,
-  EXPR_BINARY,
   EXPR_NARY,
   EXPR_NARY_FIXED,
-  EXPR_NARY_EACH,
-  EXPR_IN_INTERVAL,
-  EXPR_ARG_REF,
-  EXPR_CALL,
-  EXPR_CONST
+  EXPR_RANGE,
+  EXPR_MODEQ,
+  EXPR_CALL
 } pattern_kind_t;
 
 struct pattern {
@@ -71,35 +69,26 @@ struct pattern {
   union {
     struct {
       val_pattern_t *op;
-      pattern_t *lhs;
-      pattern_t *rhs;
-    } binary;
-    struct {
-      val_pattern_t *op;
       patternlist_t operands;
       size_t *cycles;
     } nary;
     struct {
-      val_pattern_t *op;
-      pattern_t *arg;
-    } nary_each;
-    struct {
-      pattern_t *value;
       val_pattern_t *min;
       val_pattern_t *max;
-    } in_interval;
+    } range;
+    struct {
+      val_pattern_t *divisor;
+      val_pattern_t *residue;
+    } modeq;
     struct {
       val_pattern_t *func;
-      pattern_t *arg;
+      val_pattern_t *offset;
     } call;
-    struct {
-      val_pattern_t *value;
-    } const_;
   };
 };
 
 #define PATTERN_LIST(...)                                                      \
-  ((patternlist_t){sizeof((pattern_t *[]){__VA_ARGS__}) / sizeof(pattern_t *), \
+  ((patternlist_t){lengthof(((pattern_t *[]){__VA_ARGS__})),                   \
                    (pattern_t *[]){__VA_ARGS__}})
 
 #define ANY_AS(capture) (&(pattern_t){EXPR_ANY, &capture})
@@ -112,42 +101,40 @@ struct pattern {
 
 #define SLOT() SLOT_AS(*NULL)
 
-#define BINARY_AS(capture, op, lhs, rhs)                                       \
-  (&(pattern_t){EXPR_BINARY, .binary = {op, lhs, rhs}})
-
-#define BINARY(op, lhs, rhs) BINARY_AS(*NULL, op, lhs, rhs)
-
 // Matches an n-ary expression
 #define NARY_AS(capture, op, ...)                                              \
-  (&(pattern_t){EXPR_NARY, &capture,                                           \
-                .nary = {op, .operands = PATTERN_LIST(__VA_ARGS__)}})
+  (&(pattern_t){                                                               \
+      EXPR_NARY, &capture,                                                     \
+      .nary = {op, .operands = PATTERN_LIST(__VA_ARGS__),                      \
+               .cycles =                                                       \
+                   (size_t[lengthof(((pattern_t *[]){__VA_ARGS__}))]){0}}})
 
 #define NARY(op, ...) NARY_AS(*NULL, op, __VA_ARGS__)
 
 // Matches an n-ary expression of fixed length
 #define NARY_FIXED_AS(capture, op, ...)                                        \
-  (&(pattern_t){EXPR_NARY_FIXED, &capture,                                     \
-                .nary = {op, .operands = PATTERN_LIST(__VA_ARGS__)}})
+  (&(pattern_t){                                                               \
+      EXPR_NARY_FIXED, &capture,                                               \
+      .nary = {op, .operands = PATTERN_LIST(__VA_ARGS__),                      \
+               .cycles =                                                       \
+                   (size_t[lengthof(((pattern_t *[]){__VA_ARGS__}))]){0}}})
 
 #define NARY_FIXED(op, ...) NARY_FIXED_AS(*NULL, op, __VA_ARGS__)
 
-#define IN_INTERVAL_AS(capture, value, min, max)                               \
-  (&(pattern_t){EXPR_IN_INTERVAL, &capture, .in_interval = {value, min, max}})
+#define RANGE_AS(capture, min, max)                                            \
+  (&(pattern_t){EXPR_RANGE, &capture, .range = {min, max}})
 
-#define IN_INTERVAL(value, min, max) IN_INTERVAL_AS(*NULL, value, min, max)
+#define RANGE(min, max) RANGE_AS(*NULL, min, max)
 
-#define ARG_REF_AS(capture) (&(pattern_t){EXPR_ARG_REF, &capture})
+#define MODEQ_AS(capture, divisor, residue)                                    \
+  (&(pattern_t){EXPR_MODEQ, &capture, .modeq = {divisor, residue}})
 
-#define ARG_REF() ARG_REF_AS(*NULL)
+#define MODEQ(divisor, residue) MODEQ_AS(*NULL, divisor, residue)
 
-#define CALL_AS(capture, func, arg)                                            \
-  (&(pattern_t){EXPR_CALL, &capture, .call = {func, arg}})
+#define CALL_AS(capture, func, offset)                                         \
+  (&(pattern_t){EXPR_CALL, &capture, .call = {func, offset}})
 
-#define CALL(func, arg) CALL_AS(*NULL, func, arg)
-
-#define CONST_AS(capture, value)                                               \
-  (&(pattern_t){EXPR_CONST, &capture, .const_ = {value}})
-#define CONST(...) CONST_AS(*NULL, ##__VA_ARGS__)
+#define CALL(func, offset) CALL_AS(*NULL, func, offset)
 
 bool val_matches(arvm_val_t val, val_pattern_t *pattern);
 
@@ -165,34 +152,32 @@ bool matches(arvm_expr_t expr, pattern_t *pattern);
     pattern_t *_pattern = pattern;                                             \
     match_reset(_pattern);                                                     \
                                                                                \
-    size_t slot_count = 0, val_slot_count = 0;                                 \
-    find_slots(_pattern, NULL, &slot_count, NULL, &val_slot_count);            \
+    size_t _slot_count = 0, _val_slot_count = 0;                               \
+    find_slots(_pattern, NULL, &_slot_count, NULL, &_val_slot_count);          \
                                                                                \
-    pattern_t *slots[slot_count];                                              \
-    val_pattern_t *val_slots[val_slot_count];                                  \
-    find_slots(_pattern, slots, NULL, val_slots, NULL);                        \
+    pattern_t *_slots[_slot_count];                                            \
+    val_pattern_t *_val_slots[_val_slot_count];                                \
+    find_slots(_pattern, _slots, NULL, _val_slots, NULL);                      \
                                                                                \
     while (match_next(_pattern, expr)) {                                       \
-      if (slot_count > 0) {                                                    \
-        arvm_expr_t match = slots[0]->match;                                   \
-        for (size_t i = 0; i < slot_count; i++)                                \
-          if (!arvm_is_identical(match, slots[i]->match))                      \
-            goto _skip;                                                        \
+      if (_slot_count > 0) {                                                   \
+        arvm_expr_t match = _slots[0]->match;                                  \
+        for (size_t i = 0; i < _slot_count; i++)                               \
+          if (!arvm_is_identical(match, _slots[i]->match))                     \
+            goto UNIQUE(_skip);                                                \
       }                                                                        \
                                                                                \
-      if (val_slot_count > 0) {                                                \
-        arvm_val_t val_match = val_slots[0]->match;                            \
-        for (size_t i = 0; i < val_slot_count; i++)                            \
-          if (val_slots[i]->match != val_match)                                \
-            goto _skip;                                                        \
+      if (_val_slot_count > 0) {                                               \
+        arvm_val_t val_match = _val_slots[0]->match;                           \
+        for (size_t i = 0; i < _val_slot_count; i++)                           \
+          if (_val_slots[i]->match != val_match)                               \
+            goto UNIQUE(_skip);                                                \
       }                                                                        \
                                                                                \
-      {block};                                                                 \
+      block;                                                                   \
                                                                                \
-    _skip:;                                                                    \
+      UNIQUE(_skip) :;                                                         \
     }                                                                          \
-                                                                               \
-    match_reset(_pattern);                                                     \
   } while (0);
 
 #endif /* MATCH_H */

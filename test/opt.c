@@ -4,7 +4,6 @@
 #include <ir/opt.h>
 #include <unity.h>
 
-
 static arvm_arena_t arena = {sizeof(struct arvm_expr) * 16};
 
 void setUp(void) {}
@@ -23,17 +22,17 @@ void test_unwrap_nary(void) {
 
 void test_fold_nary(void) {
   struct arvm_func func = {arvm_new_nary(
-      &arena, ARVM_NARY_ADD, 3,
-      arvm_new_nary(&arena, ARVM_NARY_ADD, 2, arvm_new_expr(&arena, UNKNOWN),
+      &arena, ARVM_NARY_TH2, 3,
+      arvm_new_nary(&arena, ARVM_NARY_TH2, 2, arvm_new_expr(&arena, UNKNOWN),
                     arvm_new_expr(&arena, UNKNOWN)),
       arvm_new_expr(&arena, UNKNOWN),
-      arvm_new_nary(&arena, ARVM_NARY_ADD, 3, arvm_new_expr(&arena, UNKNOWN),
+      arvm_new_nary(&arena, ARVM_NARY_TH2, 3, arvm_new_expr(&arena, UNKNOWN),
                     arvm_new_expr(&arena, UNKNOWN),
                     arvm_new_expr(&arena, UNKNOWN)))};
   arvm_optimize_func(&func, &arena, &arena);
 
   arvm_expr_t exp = arvm_new_nary(
-      &arena, ARVM_NARY_ADD, 6, arvm_new_expr(&arena, UNKNOWN),
+      &arena, ARVM_NARY_TH2, 6, arvm_new_expr(&arena, UNKNOWN),
       arvm_new_expr(&arena, UNKNOWN), arvm_new_expr(&arena, UNKNOWN),
       arvm_new_expr(&arena, UNKNOWN), arvm_new_expr(&arena, UNKNOWN),
       arvm_new_expr(&arena, UNKNOWN));
@@ -43,7 +42,7 @@ void test_fold_nary(void) {
 
 void test_eval_nary(void) {
   struct arvm_func func = {
-      arvm_new_nary(&arena, ARVM_NARY_ADD, 3, arvm_new_const(&arena, 1),
+      arvm_new_nary(&arena, ARVM_NARY_TH2, 3, arvm_new_const(&arena, 1),
                     arvm_new_const(&arena, 2), arvm_new_const(&arena, 3))};
   arvm_optimize_func(&func, &arena, &arena);
 
@@ -53,22 +52,22 @@ void test_eval_nary(void) {
 }
 
 void test_normalize_interval(void) {
-  struct arvm_func func = {arvm_new_in_interval(
+  struct arvm_func func = {arvm_new_range(
       &arena,
-      arvm_new_nary(&arena, ARVM_NARY_ADD, 2, arvm_new_expr(&arena, UNKNOWN),
+      arvm_new_nary(&arena, ARVM_NARY_TH2, 2, arvm_new_expr(&arena, UNKNOWN),
                     arvm_new_const(&arena, -2)),
       0, ARVM_POSITIVE_INFINITY)};
   arvm_optimize_func(&func, &arena, &arena);
 
-  arvm_expr_t exp = arvm_new_in_interval(&arena, arvm_new_expr(&arena, UNKNOWN),
-                                         2, ARVM_POSITIVE_INFINITY);
+  arvm_expr_t exp = arvm_new_range(&arena, arvm_new_expr(&arena, UNKNOWN), 2,
+                                   ARVM_POSITIVE_INFINITY);
 
   TEST_ASSERT(arvm_is_identical(func.value, exp));
 }
 
 void test_eval_interval(void) {
   struct arvm_func func = {
-      arvm_new_in_interval(&arena, arvm_new_const(&arena, 1), 0, 3)};
+      arvm_new_range(&arena, arvm_new_const(&arena, 1), 0, 3)};
   arvm_optimize_func(&func, &arena, &arena);
 
   arvm_expr_t exp = arvm_new_const(&arena, ARVM_TRUE);
@@ -79,22 +78,22 @@ void test_eval_interval(void) {
 void test_merge_intervals(void) {
   struct arvm_func func = {arvm_new_nary(
       &arena, ARVM_NARY_OR, 2,
-      arvm_new_in_interval(&arena, arvm_new_expr(&arena, UNKNOWN), 0, 5),
-      arvm_new_in_interval(&arena, arvm_new_expr(&arena, UNKNOWN), 3, 10))};
+      arvm_new_range(&arena, arvm_new_expr(&arena, UNKNOWN), 0, 5),
+      arvm_new_range(&arena, arvm_new_expr(&arena, UNKNOWN), 3, 10))};
   arvm_optimize_func(&func, &arena, &arena);
 
   arvm_expr_t exp =
-      arvm_new_in_interval(&arena, arvm_new_expr(&arena, UNKNOWN), 0, 10);
+      arvm_new_range(&arena, arvm_new_expr(&arena, UNKNOWN), 0, 10);
 
   TEST_ASSERT(arvm_is_identical(func.value, exp));
 
   func = (struct arvm_func){arvm_new_nary(
       &arena, ARVM_NARY_AND, 2,
-      arvm_new_in_interval(&arena, arvm_new_expr(&arena, UNKNOWN), 0, 5),
-      arvm_new_in_interval(&arena, arvm_new_expr(&arena, UNKNOWN), 3, 10))};
+      arvm_new_range(&arena, arvm_new_expr(&arena, UNKNOWN), 0, 5),
+      arvm_new_range(&arena, arvm_new_expr(&arena, UNKNOWN), 3, 10))};
   arvm_optimize_func(&func, &arena, &arena);
 
-  exp = arvm_new_in_interval(&arena, arvm_new_expr(&arena, UNKNOWN), 3, 5);
+  exp = arvm_new_range(&arena, arvm_new_expr(&arena, UNKNOWN), 3, 5);
 
   TEST_ASSERT(arvm_is_identical(func.value, exp));
 }
@@ -150,7 +149,7 @@ void test_distributive_law(void) {
       &arena, ARVM_NARY_AND, 2,
       arvm_new_nary(&arena, ARVM_NARY_OR, 2, arvm_new_expr(&arena, UNKNOWN),
                     arvm_new_arg_ref(&arena)),
-      arvm_new_nary(&arena, ARVM_NARY_ADD, 2, arvm_new_expr(&arena, UNKNOWN),
+      arvm_new_nary(&arena, ARVM_NARY_TH2, 2, arvm_new_expr(&arena, UNKNOWN),
                     arvm_new_const(&arena, 1)))}; // TODO: maybe add a way to
                                                   // create distinct UNKNOWNs
   arvm_optimize_func(&func, &arena, &arena);
@@ -158,11 +157,11 @@ void test_distributive_law(void) {
   arvm_expr_t exp = arvm_new_nary(
       &arena, ARVM_NARY_OR, 2,
       arvm_new_nary(&arena, ARVM_NARY_AND, 2, arvm_new_expr(&arena, UNKNOWN),
-                    arvm_new_nary(&arena, ARVM_NARY_ADD, 2,
+                    arvm_new_nary(&arena, ARVM_NARY_TH2, 2,
                                   arvm_new_expr(&arena, UNKNOWN),
                                   arvm_new_const(&arena, 1))),
       arvm_new_nary(&arena, ARVM_NARY_AND, 2, arvm_new_arg_ref(&arena),
-                    arvm_new_nary(&arena, ARVM_NARY_ADD, 2,
+                    arvm_new_nary(&arena, ARVM_NARY_TH2, 2,
                                   arvm_new_expr(&arena, UNKNOWN),
                                   arvm_new_const(&arena, 1))));
 
@@ -178,8 +177,8 @@ void test_call_inlining(void) {
 
   arvm_expr_t exp =
       arvm_new_nary(&arena, ARVM_NARY_AND, 2, arvm_new_expr(&arena, UNKNOWN),
-                    arvm_new_in_interval(&arena, arvm_new_expr(&arena, UNKNOWN),
-                                         1, ARVM_POSITIVE_INFINITY));
+                    arvm_new_range(&arena, arvm_new_expr(&arena, UNKNOWN), 1,
+                                   ARVM_POSITIVE_INFINITY));
 
   TEST_ASSERT(arvm_is_identical(func.value, exp));
 }
@@ -187,25 +186,25 @@ void test_call_inlining(void) {
 void test_const_step_recursion(void) {
   struct arvm_func func = {arvm_new_nary(
       &arena, ARVM_NARY_OR, 2,
-      arvm_new_in_interval(&arena, arvm_new_arg_ref(&arena), 1, 1),
+      arvm_new_range(&arena, arvm_new_arg_ref(&arena), 1, 1),
       arvm_new_nary(&arena, ARVM_NARY_AND, 2,
                     arvm_new_call(&arena, &func,
-                                  arvm_new_nary(&arena, ARVM_NARY_ADD, 2,
+                                  arvm_new_nary(&arena, ARVM_NARY_TH2, 2,
                                                 arvm_new_arg_ref(&arena),
                                                 arvm_new_const(&arena, -2))),
-                    arvm_new_in_interval(&arena, arvm_new_arg_ref(&arena), 1,
-                                         ARVM_POSITIVE_INFINITY)))};
+                    arvm_new_range(&arena, arvm_new_arg_ref(&arena), 1,
+                                   ARVM_POSITIVE_INFINITY)))};
   arvm_optimize_func(&func, &arena, &arena);
 
-  arvm_expr_t exp = arvm_new_nary(
-      &arena, ARVM_NARY_AND, 2,
-      arvm_new_in_interval(&arena, arvm_new_arg_ref(&arena), 1,
-                           ARVM_POSITIVE_INFINITY),
-      arvm_new_in_interval(&arena,
-                           arvm_new_binary(&arena, ARVM_BINARY_MOD,
-                                           arvm_new_arg_ref(&arena),
-                                           arvm_new_const(&arena, 2)),
-                           1, 1));
+  arvm_expr_t exp =
+      arvm_new_nary(&arena, ARVM_NARY_AND, 2,
+                    arvm_new_range(&arena, arvm_new_arg_ref(&arena), 1,
+                                   ARVM_POSITIVE_INFINITY),
+                    arvm_new_range(&arena,
+                                   arvm_new_binary(&arena, ARVM_BINARY_MOD,
+                                                   arvm_new_arg_ref(&arena),
+                                                   arvm_new_const(&arena, 2)),
+                                   1, 1));
 
   TEST_ASSERT(arvm_is_identical(func.value, exp));
 }

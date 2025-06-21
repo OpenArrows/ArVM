@@ -9,25 +9,10 @@
 void match_reset(pattern_t *pattern) {
   pattern->match = NULL;
   switch (pattern->kind) {
-  case EXPR_BINARY:
-    match_reset(pattern->binary.lhs);
-    match_reset(pattern->binary.rhs);
-    break;
   case EXPR_NARY_FIXED:
   case EXPR_NARY:
-    free(pattern->nary.cycles);
-    pattern->nary.cycles = NULL;
     for (size_t i = 0; i < pattern->nary.operands.size; i++)
       match_reset(pattern->nary.operands.patterns[i]);
-    break;
-  case EXPR_NARY_EACH:
-    match_reset(pattern->nary_each.arg);
-    break;
-  case EXPR_IN_INTERVAL:
-    match_reset(pattern->in_interval.value);
-    break;
-  case EXPR_CALL:
-    match_reset(pattern->call.arg);
     break;
   default:
     break;
@@ -41,23 +26,6 @@ bool match_next(pattern_t *pattern, arvm_expr_t expr) {
     if (pattern->match)
       return false;
     break;
-  case EXPR_BINARY:
-    if (!(expr->kind == BINARY &&
-          val_matches(expr->binary.op, pattern->binary.op)))
-      return false;
-    if (!pattern->match) {
-      if (!(match_next(pattern->binary.lhs, expr->binary.lhs) &&
-            match_next(pattern->binary.rhs, expr->binary.rhs)))
-        return false;
-    } else {
-      if (!match_next(pattern->binary.lhs, expr->binary.lhs)) {
-        match_reset(pattern->binary.lhs);
-        match_next(pattern->binary.lhs, expr->binary.lhs);
-        if (!match_next(pattern->binary.rhs, expr->binary.rhs))
-          return false;
-      }
-    }
-    break;
   case EXPR_NARY_FIXED:
     if (!(expr->kind == NARY &&
           expr->nary.operands.size == pattern->nary.operands.size))
@@ -67,23 +35,39 @@ bool match_next(pattern_t *pattern, arvm_expr_t expr) {
           expr->nary.operands.size >= pattern->nary.operands.size &&
           val_matches(expr->nary.op, pattern->nary.op)))
       return false;
-    for (;;) {
+    bool initialized = true;
+    if (!pattern->match) {
+      initialized = false;
       for (size_t i = 0; i < pattern->nary.operands.size; i++)
-        if (!match_next(pattern->nary.operands.patterns[i],
-                        expr->nary.operands.exprs[i]))
-          goto nary_match_failure;
-      goto nary_matched;
+        pattern->nary.cycles[i] = expr->nary.operands.size - i;
+    }
+    for (;;) {
+      if (!initialized) {
+        initialized = true;
+        for (size_t i = 0; i < pattern->nary.operands.size; i++) {
+          if (!match_next(pattern->nary.operands.patterns[i],
+                          expr->nary.operands.exprs[i])) {
+            goto nary_match_failure;
+          }
+        }
+        goto nary_matched;
+      } else {
+        for (size_t i = 0; i < pattern->nary.operands.size; i++) {
+          pattern_t *op_pattern = pattern->nary.operands.patterns[i];
+          arvm_expr_t op_expr = expr->nary.operands.exprs[i];
+          if (match_next(op_pattern, op_expr)) {
+            goto nary_matched;
+          } else {
+            match_reset(op_pattern);
+            match_next(op_pattern, op_expr);
+          }
+        }
+      }
 
     nary_match_failure:
+      initialized = false;
       for (size_t i = 0; i < pattern->nary.operands.size; i++)
         match_reset(pattern->nary.operands.patterns[i]);
-
-      if (!pattern->nary.cycles) {
-        pattern->nary.cycles =
-            malloc(sizeof(size_t) * pattern->nary.operands.size);
-        for (size_t i = 0; i < pattern->nary.operands.size; i++)
-          pattern->nary.cycles[i] = expr->nary.operands.size - i;
-      }
 
       for (size_t i = pattern->nary.operands.size; i-- > 0;) {
         pattern->nary.cycles[i]--;
@@ -109,30 +93,28 @@ bool match_next(pattern_t *pattern, arvm_expr_t expr) {
   nary_matched:
     break;
   }
-  case EXPR_IN_INTERVAL:
-    if (!(expr->kind == IN_INTERVAL &&
-          match_next(pattern->in_interval.value, expr->in_interval.value) &&
-          val_matches(expr->in_interval.min, pattern->in_interval.min) &&
-          val_matches(expr->in_interval.max, pattern->in_interval.max)))
-      return false;
-    break;
-  case EXPR_ARG_REF:
+  case EXPR_RANGE:
     if (pattern->match)
       return false;
-    if (expr->kind != ARG_REF)
+    if (!(expr->kind == RANGE &&
+          val_matches(expr->range.min, pattern->range.min) &&
+          val_matches(expr->range.max, pattern->range.max)))
+      return false;
+    break;
+  case EXPR_MODEQ:
+    if (pattern->match)
+      return false;
+    if (!(expr->kind == MODEQ &&
+          val_matches(expr->modeq.divisor, pattern->modeq.divisor) &&
+          val_matches(expr->modeq.residue, pattern->modeq.residue)))
       return false;
     break;
   case EXPR_CALL:
-    if (!(expr->kind == CALL &&
-          val_matches((arvm_val_t)expr->call.func, pattern->call.func) &&
-          match_next(pattern->call.arg, expr->call.arg)))
-      return false;
-    break;
-  case EXPR_CONST:
     if (pattern->match)
       return false;
-    if (!(expr->kind == CONST &&
-          val_matches(expr->const_.value, pattern->const_.value)))
+    if (!(expr->kind == CALL &&
+          val_matches((arvm_val_t)expr->call.func, pattern->call.func) &&
+          val_matches(expr->call.offset, pattern->call.offset)))
       return false;
     break;
   default:
@@ -199,17 +181,17 @@ void find_slots(pattern_t *pattern, pattern_t **slots, size_t *slot_count,
       find_slots(arg_pattern, slots, slot_count, val_slots, val_slot_count);
     }
     break;
-  case EXPR_IN_INTERVAL:
-    find_slots(pattern->in_interval.value, slots, slot_count, val_slots,
-               val_slot_count);
-    find_val_slots(pattern->in_interval.min, val_slots, val_slot_count);
-    find_val_slots(pattern->in_interval.max, val_slots, val_slot_count);
+  case EXPR_RANGE:
+    find_val_slots(pattern->range.min, val_slots, val_slot_count);
+    find_val_slots(pattern->range.max, val_slots, val_slot_count);
+    break;
+  case EXPR_MODEQ:
+    find_val_slots(pattern->modeq.divisor, val_slots, val_slot_count);
+    find_val_slots(pattern->modeq.residue, val_slots, val_slot_count);
     break;
   case EXPR_CALL:
-    find_slots(pattern->call.arg, slots, slot_count, val_slots, val_slot_count);
-    break;
-  case EXPR_CONST:
-    find_val_slots(pattern->const_.value, val_slots, val_slot_count);
+    find_val_slots(pattern->call.func, val_slots, val_slot_count);
+    find_val_slots(pattern->call.offset, val_slots, val_slot_count);
     break;
   default:
     break;
@@ -217,37 +199,6 @@ void find_slots(pattern_t *pattern, pattern_t **slots, size_t *slot_count,
 }
 
 bool matches(arvm_expr_t expr, pattern_t *pattern) {
-  match_reset(pattern);
-
-  size_t slot_count = 0, val_slot_count = 0;
-  find_slots(pattern, NULL, &slot_count, NULL, &val_slot_count);
-  if (slot_count == 0 && val_slot_count == 0)
-    return match_next(pattern, expr);
-
-  pattern_t *slots[slot_count];
-  val_pattern_t *val_slots[val_slot_count];
-  find_slots(pattern, slots, NULL, val_slots, NULL);
-
-  while (match_next(pattern, expr)) {
-    if (slot_count > 0) {
-      arvm_expr_t match = slots[0]->match;
-      for (size_t i = 0; i < slot_count; i++)
-        if (!arvm_is_identical(match, slots[i]->match))
-          goto skip;
-    }
-
-    if (val_slot_count > 0) {
-      arvm_val_t val_match = val_slots[0]->match;
-      for (size_t i = 0; i < val_slot_count; i++)
-        if (val_slots[i]->match != val_match)
-          goto skip;
-    }
-
-    match_reset(pattern);
-    return true;
-  skip:;
-  }
-
-  match_reset(pattern);
+  FOR_EACH_MATCH(expr, pattern, { return true; });
   return false;
 }

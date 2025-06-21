@@ -9,47 +9,14 @@ typedef struct arvm_exprlist {
   arvm_expr_t *exprs;
 } arvm_exprlist_t;
 
-// Binary expression, equivalent to non-commutative operations
-typedef struct arvm_binary_expr {
-  arvm_binary_op_t op;
-  arvm_expr_t lhs;
-  arvm_expr_t rhs;
-} arvm_binary_expr_t;
-
-// N-ary expression, equivalent to commutative arithmetic/boolean operations
-typedef struct arvm_nary_expr {
-  arvm_nary_op_t op;
-  arvm_exprlist_t operands;
-} arvm_nary_expr_t;
-
-// Interval expression, checks whether the value is within an expected range
-// (inclusive)
-typedef struct arvm_in_interval_expr {
-  arvm_expr_t value;
-  arvm_val_t min;
-  arvm_val_t max;
-} arvm_in_interval_expr_t;
-
-// Call expression
-typedef struct arvm_call_expr {
-  arvm_func_t func;
-  arvm_expr_t arg;
-} arvm_call_expr_t;
-
-// Constant expression, used to represent integer values
-typedef struct arvm_const_expr {
-  arvm_val_t value;
-} arvm_const_expr_t;
-
 typedef enum arvm_expr_kind {
-  BINARY,
+  RANGE,
+  MODEQ,
   NARY,
-  IN_INTERVAL,
-  ARG_REF,
   CALL,
-  CONST,
 
   // Special expression kinds
+  // TODO: remove
   NONE = -1,
   UNKNOWN = -2,
   RESERVED = -3
@@ -58,11 +25,31 @@ typedef enum arvm_expr_kind {
 struct arvm_expr {
   arvm_expr_kind_t kind;
   union {
-    arvm_binary_expr_t binary;
-    arvm_nary_expr_t nary;
-    arvm_in_interval_expr_t in_interval;
-    arvm_call_expr_t call;
-    arvm_const_expr_t const_;
+    // Range expression, checks whether the argument value is within an expected
+    // range (inclusive)
+    struct {
+      arvm_val_t min;
+      arvm_val_t max;
+    } range;
+
+    // Modulo equality expression, checks whether the argument's residue when
+    // divided by given divisor is equal to the expected value
+    struct {
+      arvm_val_t divisor;
+      arvm_val_t residue;
+    } modeq;
+
+    // N-ary expression, represents commutative arithmetic/boolean operations
+    struct {
+      arvm_nary_op_t op;
+      arvm_exprlist_t operands;
+    } nary;
+
+    // Call expression
+    struct {
+      arvm_func_t func;
+      arvm_val_t offset;
+    } call;
   };
 };
 
