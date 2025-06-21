@@ -76,12 +76,13 @@ void test_eval_nary(void) {
 void test_eval_call(void) {
   struct arvm_func func;
 
-  struct arvm_func callee = {arvm_new_range(&arena, 0, 0)};
+  struct arvm_func callee = {arvm_new_range(&arena, 0, 1)};
 
   func.value = arvm_new_call(&arena, &callee, 1);
-  TEST_ASSERT_EQUAL(ARVM_TRUE, arvm_eval(&func, 0));
-  TEST_ASSERT_EQUAL(ARVM_TRUE, arvm_eval(&func, 1));
-  TEST_ASSERT_EQUAL(ARVM_FALSE, arvm_eval(&func, 2));
+  TEST_ASSERT_EQUAL(ARVM_FALSE, arvm_eval(&func, 0));
+  TEST_ASSERT_EQUAL(ARVM_FALSE, arvm_eval(&func, 1));
+  TEST_ASSERT_EQUAL(ARVM_TRUE, arvm_eval(&func, 2));
+  TEST_ASSERT_EQUAL(ARVM_FALSE, arvm_eval(&func, 3));
 }
 
 int main(void) {

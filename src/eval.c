@@ -53,9 +53,9 @@ static arvm_val_t eval_expr(arvm_expr_t expr, eval_ctx_t ctx) {
   case MODEQ:
     return ctx.arg % expr->modeq.divisor == expr->modeq.residue;
   case CALL:
-    return arvm_eval(expr->call.func, ctx.arg > expr->call.offset
-                                          ? ctx.arg - expr->call.offset
-                                          : 0);
+    return ctx.arg > expr->call.offset
+               ? arvm_eval(expr->call.func, ctx.arg - expr->call.offset)
+               : ARVM_FALSE;
   default:
     unreachable();
   }
