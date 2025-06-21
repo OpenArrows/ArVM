@@ -33,7 +33,7 @@ typedef struct val_pattern {
 } val_pattern_t;
 
 #define VAL_LIST(...)                                                          \
-  ((vallist_t){(lengthof((arvm_val_t[]){__VA_ARGS__})),                        \
+  ((vallist_t){(lengthof(((arvm_val_t[]){__VA_ARGS__}))),                      \
                (arvm_val_t[]){__VA_ARGS__}})
 
 #define ANYVAL() (&(val_pattern_t){VAL_ANY})

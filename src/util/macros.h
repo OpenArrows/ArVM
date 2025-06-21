@@ -6,8 +6,11 @@
 
 #define UNIQUE(x) CONCAT(x, __LINE__)
 
-#define UNWRAP_(...) __VA_ARGS__
-#define UNWRAP(x) UNWRAP_ x
+#define EXPAND(...) __VA_ARGS__
+
+#define UNWRAP(x) EXPAND x
+
+#define COMMA(x) x,
 
 #define lengthof(x) (sizeof((x)) / sizeof(*(x)))
 
