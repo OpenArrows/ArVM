@@ -16,6 +16,10 @@ typedef struct arvm_func *arvm_func_t;
 
 arvm_func_t arvm_create_function(arvm_expr_t value);
 
+void arvm_set_function_name(arvm_func_t func, const char *name);
+
+void arvm_print_function(arvm_func_t func);
+
 void arvm_build_function(arvm_func_t func);
 
 arvm_val_t arvm_call_function(arvm_func_t func, arvm_val_t arg);

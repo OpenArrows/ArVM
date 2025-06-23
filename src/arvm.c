@@ -3,8 +3,11 @@
 #include "ir/builder.h"
 #include "ir/ir.h"
 #include "ir/opt.h"
+#include "ir/print.h"
+#include "ir/visit.h"
 #include "util/arena.h"
 #include <stdarg.h>
+#include <stdio.h>
 #include <stdlib.h>
 
 arvm_arena_t arvm_expr_arena = {sizeof(struct arvm_expr) * 2048};
@@ -14,8 +17,17 @@ arvm_arena_t arvm_func_arena = {sizeof(struct arvm_func) * 256};
 arvm_func_t arvm_create_function(arvm_expr_t value) {
   arvm_func_t func =
       arvm_arena_alloc(&arvm_func_arena, sizeof(struct arvm_func));
-  *func = (struct arvm_func){value};
+  *func = (struct arvm_func){value, NULL, "f"};
   return func;
+}
+
+void arvm_set_function_name(arvm_func_t func, const char *name) {
+  func->name = name;
+}
+
+void arvm_print_function(arvm_func_t func) {
+  printf("%s(t) = ", func->name);
+  arvm_print_expr(func->value, stdout);
 }
 
 void arvm_build_function(arvm_func_t func) {

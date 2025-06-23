@@ -61,6 +61,9 @@ struct arvm_func {
 
   // Pointer to a JIT-compiled function
   arvm_val_t (*func)(arvm_val_t);
+
+  // Function name (used primarily for debugging)
+  const char *name;
 };
 
 #endif /* IR_H */

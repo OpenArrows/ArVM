@@ -25,6 +25,11 @@ target_link_libraries(arvm_test_opt arvm unity)
 target_include_directories(arvm_test_opt PRIVATE ${ARVM_TEST_INCLUDE_DIRECTORIES})
 add_test(NAME ArVM_opt COMMAND arvm_test_opt)
 
+add_executable(arvm_test_print print.c)
+target_link_libraries(arvm_test_print arvm unity)
+target_include_directories(arvm_test_print PRIVATE ${ARVM_TEST_INCLUDE_DIRECTORIES})
+add_test(NAME ArVM_print COMMAND arvm_test_print)
+
 add_executable(arvm_test_eval eval.c)
 target_link_libraries(arvm_test_eval arvm unity)
 target_include_directories(arvm_test_eval PRIVATE ${ARVM_TEST_INCLUDE_DIRECTORIES})

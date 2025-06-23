@@ -16,6 +16,7 @@ add_library(arvm STATIC
     src/ir/visit.c
     src/ir/match.c
     src/ir/opt.c
+    src/ir/print.c
 
     src/eval.c
 
