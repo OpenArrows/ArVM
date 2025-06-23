@@ -21,6 +21,10 @@ arvm_func_t arvm_create_function(arvm_expr_t value) {
   return func;
 }
 
+void arvm_set_function_value(arvm_func_t func, arvm_expr_t value) {
+  func->value = value;
+}
+
 void arvm_set_function_name(arvm_func_t func, const char *name) {
   func->name = name;
 }
