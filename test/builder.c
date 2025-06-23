@@ -22,8 +22,8 @@ void test_new_modeq(void) {
 
 void test_new_nary(void) {
   TEST_ASSERT(arvm_is_identical(
-      arvm_new_nary(&arena, ARVM_OP_XOR, 2,
-                    &(struct arvm_expr){RANGE, .range = {0, 1}},
+      arvm_new_nary(&arena, ARVM_OP_XOR, 3,
+                    &(struct arvm_expr){RANGE, .range = {0, 1}}, NULL,
                     &(struct arvm_expr){RANGE, .range = {1, 2}}),
       &(struct arvm_expr){
           NARY,
