@@ -35,6 +35,12 @@ typedef enum arvm_nary_op {
 // Boolean n-ary expression
 arvm_expr_t arvm_make_nary(arvm_nary_op_t op, size_t operand_count, ...);
 
+arvm_expr_t arvm_make_nary_v(arvm_nary_op_t op, size_t operand_count,
+                             va_list operands);
+
+arvm_expr_t arvm_make_nary_p(arvm_nary_op_t op, size_t operand_count,
+                             arvm_expr_t *operands);
+
 // Checks if the argument is in given range
 arvm_expr_t arvm_make_range(arvm_val_t min, arvm_val_t max);
 

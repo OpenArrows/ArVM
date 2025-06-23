@@ -10,25 +10,36 @@ arvm_expr_t arvm_new_expr(arvm_arena_t *arena, arvm_expr_kind_t kind) {
   return expr;
 }
 
-arvm_expr_t arvm_new_nary_v(arvm_arena_t *arena, arvm_nary_op_t op,
-                            size_t operand_count, va_list operands) {
+arvm_expr_t arvm_new_nary_p(arvm_arena_t *arena, arvm_nary_op_t op,
+                            size_t operand_count, arvm_expr_t *operands) {
   arvm_expr_t expr = arvm_new_expr(arena, NARY);
   expr->nary.op = op;
-  expr->nary.operands.size = operand_count;
+  expr->nary.operands.size = 0;
   expr->nary.operands.exprs =
       arvm_arena_alloc(arena, sizeof(arvm_expr_t) * operand_count);
-  for (int i = 0; i < operand_count; i++)
-    expr->nary.operands.exprs[i] = va_arg(operands, arvm_expr_t);
+  for (size_t i = 0; i < operand_count; i++) {
+    if (operands[i] != NULL) {
+      expr->nary.operands.exprs[expr->nary.operands.size++] = operands[i];
+    }
+  }
   return expr;
+}
+
+arvm_expr_t arvm_new_nary_v(arvm_arena_t *arena, arvm_nary_op_t op,
+                            size_t operand_count, va_list operands) {
+  arvm_expr_t operand_array[operand_count];
+  for (size_t i = 0; i < operand_count; i++)
+    operand_array[i] = va_arg(operands, arvm_expr_t);
+  return arvm_new_nary_p(arena, op, operand_count, operand_array);
 }
 
 arvm_expr_t arvm_new_nary(arvm_arena_t *arena, arvm_nary_op_t op,
                           size_t operand_count, ...) {
   va_list args;
   va_start(args, operand_count);
-  arvm_expr_t nary = arvm_new_nary_v(arena, op, operand_count, args);
+  arvm_expr_t expr = arvm_new_nary_v(arena, op, operand_count, args);
   va_end(args);
-  return nary;
+  return expr;
 }
 
 arvm_expr_t arvm_new_range(arvm_arena_t *arena, arvm_val_t min,

@@ -8,6 +8,9 @@
 
 arvm_expr_t arvm_new_expr(arvm_arena_t *arena, arvm_expr_kind_t kind);
 
+arvm_expr_t arvm_new_nary_p(arvm_arena_t *arena, arvm_nary_op_t op,
+                            size_t operand_count, arvm_expr_t *operands);
+
 arvm_expr_t arvm_new_nary_v(arvm_arena_t *arena, arvm_nary_op_t op,
                             size_t operand_count, va_list operands);
 

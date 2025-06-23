@@ -40,12 +40,22 @@ arvm_val_t arvm_call_function(arvm_func_t func, arvm_val_t arg) {
   return arvm_eval(func, arg);
 }
 
+arvm_expr_t arvm_make_nary_p(arvm_nary_op_t op, size_t operand_count,
+                             arvm_expr_t *operands) {
+  return arvm_new_nary_p(&arvm_expr_arena, op, operand_count, operands);
+}
+
+arvm_expr_t arvm_make_nary_v(arvm_nary_op_t op, size_t operand_count,
+                             va_list operands) {
+  return arvm_new_nary_v(&arvm_expr_arena, op, operand_count, operands);
+}
+
 arvm_expr_t arvm_make_nary(arvm_nary_op_t op, size_t operand_count, ...) {
   va_list args;
   va_start(args, operand_count);
-  arvm_expr_t nary = arvm_new_nary_v(&arvm_expr_arena, op, operand_count, args);
+  arvm_expr_t expr = arvm_new_nary_v(&arvm_expr_arena, op, operand_count, args);
   va_end(args);
-  return nary;
+  return expr;
 }
 
 arvm_expr_t arvm_make_range(arvm_val_t min, arvm_val_t max) {
