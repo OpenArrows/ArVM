@@ -1,57 +1,76 @@
 #ifndef ARVM_H
 #define ARVM_H
 
+#include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
 
-typedef uintmax_t arvm_val_t;
+typedef uintmax_t arvm_int_t;
 
 #define ARVM_FALSE 0
 #define ARVM_TRUE 1
 
 #define ARVM_INFINITY UINTMAX_MAX
 
-typedef struct arvm_expr *arvm_expr_t;
+typedef struct arvm_function *arvm_function_t;
 
-typedef struct arvm_func *arvm_func_t;
+typedef struct arvm_subdomain arvm_subdomain_t;
 
-arvm_func_t arvm_create_function(arvm_expr_t value);
+typedef struct arvm_operand arvm_operand_t;
 
-void arvm_set_function_value(arvm_func_t func, arvm_expr_t value);
+typedef struct arvm_space {
+  size_t size;
+  arvm_function_t tail_function;
+} arvm_space_t;
 
-void arvm_set_function_name(arvm_func_t func, const char *name);
+void arvm_dispose_space(arvm_space_t *space);
 
-void arvm_print_function(arvm_func_t func);
+void arvm_optimize_space(arvm_space_t *space);
 
-void arvm_build_function(arvm_func_t func);
+// All unary boolean ArVM IR functions are piecewise defined. The single integer
+// argument t is the current simulation time (tick)
+struct arvm_function {
+  arvm_space_t *space;
 
-arvm_val_t arvm_call_function(arvm_func_t func, arvm_val_t arg);
+  struct {
+    bool callee_processed;
+    size_t caller_count;
+  };
 
-typedef enum arvm_nary_op {
-  ARVM_OP_OR,
-  ARVM_OP_NOR,
-  ARVM_OP_XOR,
-  ARVM_OP_TH2, // TH2 (2-threshold) is true if at least two of the given
-               // operands are true
-} arvm_nary_op_t;
+  // The `counterpart` field is set on functions after mirroring operations
+  // (i.e. operations that output a synonymous space)
+  arvm_function_t counterpart;
 
-// Boolean n-ary expression
-arvm_expr_t arvm_make_nary(arvm_nary_op_t op, size_t operand_count, ...);
+  struct {
+    arvm_function_t previous;
+    arvm_function_t next;
+  };
 
-arvm_expr_t arvm_make_nary_v(arvm_nary_op_t op, size_t operand_count,
-                             va_list operands);
+  arvm_subdomain_t *domain;
+};
 
-arvm_expr_t arvm_make_nary_p(arvm_nary_op_t op, size_t operand_count,
-                             arvm_expr_t *operands);
+// Each subdomain (interval) of the function is defined by a truth table, with
+// operands being function values at (t - C), where C is a constant positive
+// integer
+struct arvm_subdomain {
+  arvm_int_t end;
 
-// Checks if the argument is in given range
-arvm_expr_t arvm_make_range(arvm_val_t min, arvm_val_t max);
+  size_t operand_count;
+  arvm_operand_t *operands;
+  bool *table;
+};
 
-// Checks if the argument's residue is equal to the given value when divided by
-// given constant divisor
-arvm_expr_t arvm_make_modeq(arvm_val_t divisor, arvm_val_t residue);
+struct arvm_operand {
+  arvm_function_t func;
+  arvm_int_t offset;
+};
 
-// Evaluates another ArVM function with the current argument value - constant
-// offset
-arvm_expr_t arvm_make_call(arvm_func_t func, arvm_val_t offset);
+arvm_function_t arvm_new_function(arvm_space_t *space);
+
+void arvm_set_function_domain(arvm_function_t func, ...);
+
+void arvm_delete_function(arvm_function_t func);
+
+bool arvm_call_function(arvm_function_t func, arvm_int_t arg);
 
 #endif /* ARVM_H */

@@ -1,24 +1,15 @@
+# TODO: Makefile
+
 cmake_minimum_required(VERSION 3.10)
 project(ArVM
-    VERSION 0.1.0
+    VERSION 0.2.0
     LANGUAGES C
     DESCRIPTION "A fast CA backend"
 )
 
 add_library(arvm STATIC
     src/arvm.c
-
-    src/util/arena.c
-
-    src/ir/builder.c
-    src/ir/analyze.c
-    src/ir/transform.c
-    src/ir/visit.c
-    src/ir/match.c
-    src/ir/opt.c
-    src/ir/print.c
-
-    src/eval.c
+    src/math.c
 
     # src/codegen/xalloc.c
     # src/codegen/codegen.c

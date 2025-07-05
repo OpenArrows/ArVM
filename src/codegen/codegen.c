@@ -21,7 +21,7 @@ static void arvm_push_op(arvm_native_func_t *func, arvm_operand_t op) {
   func->operands.value[i] = op;
 }
 
-void arvm_gen_const(arvm_native_func_t *func, arvm_val_t value) {
+void arvm_gen_const(arvm_native_func_t *func, arvm_int_t value) {
   arvm_operand_t result = {OP_CONST, .const_val = value};
   arvm_gen_inst(func, (arvm_inst_t){INST_CONST, .const_ = {value}});
   arvm_push_op(func, result);

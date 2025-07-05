@@ -24,7 +24,7 @@ typedef enum arvm_operand_type { OP_CONST, OP_REF, OP_ARG } arvm_operand_type_t;
 typedef struct arvm_operand {
   arvm_operand_type_t type;
   union {
-    arvm_val_t const_val;
+    arvm_int_t const_val;
     size_t ref_id;
   };
 } arvm_operand_t;
@@ -36,7 +36,7 @@ typedef struct arvm_inst {
   arvm_operand_t result;
   union {
     struct {
-      arvm_val_t value;
+      arvm_int_t value;
     } const_;
   };
 } arvm_inst_t;
@@ -50,7 +50,7 @@ typedef struct arvm_native_func {
 
 arvm_native_func_t *arvm_gen_func(arvm_arena_t *arena);
 
-void arvm_gen_const(arvm_native_func_t *func, arvm_val_t value);
+void arvm_gen_const(arvm_native_func_t *func, arvm_int_t value);
 
 #endif /* CODEGEN_SUPPORTED */
 
