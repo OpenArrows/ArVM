@@ -84,6 +84,11 @@ void arvm_optimize_space(arvm_space_t *space) {
       for (size_t i = 0; i < subdomain->operand_count; i++) {
         arvm_operand_t operand = subdomain->operands[i];
         arvm_function_t callee = operand.func;
+        if (callee == func) {
+          total_operands++;
+          continue;
+        }
+
         arvm_subdomain_t *callee_subdomain =
             NULL; // all functions have an implicit subdomain (0; 0] that is
                   // always false
@@ -121,13 +126,19 @@ void arvm_optimize_space(arvm_space_t *space) {
 
       size_t op_i = 0;
       for (size_t i = 0; i < subdomain->operand_count; i++) {
+        arvm_operand_t operand = subdomain->operands[i];
+        if (operand.func == func) {
+          new_subdomain->operands[op_i++] = operand;
+          continue;
+        }
+
         arvm_subdomain_t *callee_subdomain = callee_subdomains[i];
         if (callee_subdomain == NULL)
           continue;
         for (size_t j = 0; j < callee_subdomain->operand_count; j++) {
-          arvm_operand_t operand = callee_subdomain->operands[j];
-          operand.offset += subdomain->operands[i].offset;
-          new_subdomain->operands[op_i++] = operand;
+          arvm_operand_t sub_operand = callee_subdomain->operands[j];
+          sub_operand.offset += subdomain->operands[i].offset;
+          new_subdomain->operands[op_i++] = sub_operand;
         }
       }
 
@@ -138,7 +149,10 @@ void arvm_optimize_space(arvm_space_t *space) {
         for (size_t j = 0; j < subdomain->operand_count; j++) {
           arvm_subdomain_t *callee_subdomain = callee_subdomains[j];
           idx <<= 1;
-          if (callee_subdomain != NULL) {
+          if (subdomain->operands[j].func == func) {
+            offset++;
+            idx |= (i >> (total_operands - offset)) & 1;
+          } else if (callee_subdomain != NULL) {
             size_t op_count = callee_subdomain->operand_count;
             offset += op_count;
             size_t callee_idx =
