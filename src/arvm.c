@@ -78,7 +78,7 @@ void arvm_optimize_space(arvm_space_t *space) {
       arvm_subdomain_t **callee_subdomains =
           malloc(sizeof(arvm_subdomain_t *) * subdomain->operand_count);
       if (callee_subdomains == NULL)
-        ; // TODO
+        goto malloc_failure;
 
       arvm_int_t subdomain_end = subdomain->end;
       for (size_t i = 0; i < subdomain->operand_count; i++) {
@@ -106,13 +106,8 @@ void arvm_optimize_space(arvm_space_t *space) {
 
       arvm_subdomain_t *new_domain = realloc(
           opt_domain, sizeof(arvm_subdomain_t) * (opt_subdomain_idx + 1));
-      if (new_domain == NULL) {
-        // TODO
-        /*free(callee_subdomains);
-        free(opt_domain);
-        opt_domain = NULL;
-        break;*/
-      }
+      if (new_domain == NULL)
+        goto malloc_failure;
       opt_domain = new_domain;
 
       arvm_subdomain_t *new_subdomain = &opt_domain[opt_subdomain_idx++];
@@ -121,9 +116,8 @@ void arvm_optimize_space(arvm_space_t *space) {
       new_subdomain->operands = malloc(sizeof(arvm_operand_t) * total_operands);
       size_t table_len = arvm_pow2(total_operands);
       new_subdomain->table = malloc(sizeof(arvm_operand_t) * table_len);
-      if (new_subdomain->operands == NULL || new_subdomain->table == NULL) {
-        // TODO
-      }
+      if (new_subdomain->operands == NULL || new_subdomain->table == NULL)
+        goto malloc_failure;
 
       size_t op_i = 0;
       for (size_t i = 0; i < subdomain->operand_count; i++) {
@@ -163,6 +157,19 @@ void arvm_optimize_space(arvm_space_t *space) {
         else
           subdomain++;
       }
+
+      continue;
+
+    malloc_failure:
+      for (size_t i = 0; i < opt_subdomain_idx; i++) {
+        arvm_subdomain_t subdomain = opt_domain[i];
+        free(subdomain.operands);
+        free(subdomain.table);
+      }
+      free(callee_subdomains);
+      free(opt_domain);
+      opt_domain = NULL;
+      break;
     }
 
     if (opt_domain != NULL)
