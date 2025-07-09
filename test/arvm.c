@@ -8,16 +8,23 @@ void setUp(void) {}
 void tearDown(void) { arvm_dispose_space(&space); }
 
 void test(void) {
-  arvm_function_t f = arvm_new_function(&space);
+  arvm_function_t f = arvm_new_function(&space), g = arvm_new_function(&space),
+                  h = arvm_new_function(&space);
+
   arvm_set_function_domain(
-      f, (struct arvm_subdomain[]){
+      h, (struct arvm_subdomain[]){
              {ARVM_INFINITY, 0, (arvm_operand_t[]){}, (bool[]){true}},
          });
 
-  arvm_function_t g = arvm_new_function(&space);
   arvm_set_function_domain(
       g, (struct arvm_subdomain[]){
-             {ARVM_INFINITY, 2, (arvm_operand_t[]){{g, 1}, {f, 1}},
+             {ARVM_INFINITY, 2, (arvm_operand_t[]){{f, 1}, {h, 1}},
+              (bool[]){false, true, true, false}},
+         });
+
+  arvm_set_function_domain(
+      f, (struct arvm_subdomain[]){
+             {ARVM_INFINITY, 2, (arvm_operand_t[]){{g, 1}, {h, 1}},
               (bool[]){false, true, true, false}},
          });
 

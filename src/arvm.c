@@ -21,16 +21,168 @@ static int cmp_caller_count(const void *a, const void *b) {
   return (a_caller_count > b_caller_count) - (a_caller_count < b_caller_count);
 }
 
+// Inline functions calls. Returns true if at least one call was inlined
+// The main part of the algorithm consists of dividing the function domain
+// into subdomains, operands of which are the operands of each callee on the
+// given intervals.
+static bool inline_calls(arvm_function_t func) {
+  bool inlined = false;
+
+  arvm_subdomain_t *opt_domain = NULL;
+  size_t opt_subdomain_idx = 0;
+
+  arvm_subdomain_t *subdomain = func->domain;
+  arvm_int_t subdomain_start = 0; // not inclusive
+  for (;;) {
+    size_t total_operands = 0;
+
+    // Find the minimal interval where all callee subdomains are consistent
+    arvm_subdomain_t **callee_subdomains =
+        malloc(sizeof(arvm_subdomain_t *) * subdomain->operand_count);
+    if (callee_subdomains == NULL)
+      goto malloc_failure;
+
+    arvm_int_t subdomain_end = subdomain->end;
+    for (size_t i = 0; i < subdomain->operand_count; i++) {
+      arvm_operand_t operand = subdomain->operands[i];
+      arvm_function_t callee = operand.func;
+      // Do not inline functions that are not optimized
+      if (callee->state != ARVM_VISITED) {
+        total_operands++;
+        continue;
+      }
+
+      inlined = true;
+
+      arvm_subdomain_t *callee_subdomain =
+          NULL; // all functions have an implicit subdomain (0; 0] that is
+                // always false
+      arvm_int_t callee_abs_end = operand.offset;
+      while (callee_abs_end <= subdomain_start) {
+        if (callee_subdomain == NULL)
+          callee_subdomain = callee->domain;
+        else
+          callee_subdomain++;
+        callee_abs_end = arvm_add(callee_subdomain->end, operand.offset);
+      }
+      if (callee_abs_end < subdomain_end)
+        subdomain_end = callee_abs_end;
+
+      callee_subdomains[i] = callee_subdomain;
+
+      if (callee_subdomain != NULL)
+        total_operands += callee_subdomain->operand_count;
+    }
+
+    arvm_subdomain_t *new_domain =
+        realloc(opt_domain, sizeof(arvm_subdomain_t) * (opt_subdomain_idx + 1));
+    if (new_domain == NULL)
+      goto malloc_failure;
+    opt_domain = new_domain;
+
+    arvm_subdomain_t *new_subdomain = &opt_domain[opt_subdomain_idx++];
+    new_subdomain->end = subdomain_end;
+    new_subdomain->operand_count = total_operands;
+    new_subdomain->operands = malloc(sizeof(arvm_operand_t) * total_operands);
+    size_t table_len = arvm_pow2(total_operands);
+    new_subdomain->table = malloc(sizeof(arvm_operand_t) * table_len);
+    if (new_subdomain->operands == NULL || new_subdomain->table == NULL)
+      goto malloc_failure;
+
+    size_t op_i = 0;
+    for (size_t i = 0; i < subdomain->operand_count; i++) {
+      arvm_operand_t operand = subdomain->operands[i];
+      if (operand.func->state != ARVM_VISITED) {
+        new_subdomain->operands[op_i++] = operand;
+        continue;
+      }
+
+      arvm_subdomain_t *callee_subdomain = callee_subdomains[i];
+      if (callee_subdomain == NULL)
+        continue;
+      for (size_t j = 0; j < callee_subdomain->operand_count; j++) {
+        arvm_operand_t sub_operand = callee_subdomain->operands[j];
+        sub_operand.offset += subdomain->operands[i].offset;
+        new_subdomain->operands[op_i++] = sub_operand;
+      }
+    }
+
+    for (size_t i = 0; i < table_len; i++) {
+      size_t idx = 0;
+
+      size_t offset = 0;
+      for (size_t j = 0; j < subdomain->operand_count; j++) {
+        arvm_subdomain_t *callee_subdomain = callee_subdomains[j];
+        idx <<= 1;
+        if (subdomain->operands[j].func->state != ARVM_VISITED) {
+          offset++;
+          idx |= (i >> (total_operands - offset)) & 1;
+        } else if (callee_subdomain != NULL) {
+          size_t op_count = callee_subdomain->operand_count;
+          offset += op_count;
+          size_t callee_idx =
+              (i >> (total_operands - offset)) & arvm_ones(op_count);
+          idx |= callee_subdomain->table[callee_idx];
+        }
+      }
+
+      new_subdomain->table[i] = subdomain->table[idx];
+    }
+
+    subdomain_start = subdomain_end;
+    if (subdomain_end == subdomain->end) {
+      if (subdomain->end == ARVM_INFINITY)
+        break;
+      else
+        subdomain++;
+    }
+
+    continue;
+
+  malloc_failure:
+    for (size_t i = 0; i < opt_subdomain_idx; i++) {
+      arvm_subdomain_t subdomain = opt_domain[i];
+      free(subdomain.operands);
+      free(subdomain.table);
+    }
+    free(callee_subdomains);
+    free(opt_domain);
+    opt_domain = NULL;
+    break;
+  }
+
+  if (opt_domain != NULL)
+    func->domain = opt_domain;
+
+  return inlined;
+}
+
+static void optimize_func(arvm_function_t func) { inline_calls(func); }
+
 void arvm_optimize_space(arvm_space_t *space) {
   arvm_function_t *functions = malloc(sizeof(arvm_function_t) * space->size);
   if (functions == NULL)
     return;
+
+  struct stack {
+    struct stack_entry {
+      arvm_function_t func;
+      arvm_subdomain_t *subdomain;
+      size_t callee_index;
+    } *data;
+    size_t offset;
+  } stack = {malloc(sizeof(*stack.data) * space->size), 0};
+  if (stack.data == NULL) {
+    free(functions);
+    return;
+  }
 
   // Initialize
   size_t i = 0;
   for (arvm_function_t func = space->tail_function; func != NULL;
        func = func->previous) {
     func->caller_count = 0;
+    func->state = ARVM_TODO;
     functions[i++] = func;
   }
 
@@ -59,137 +211,37 @@ void arvm_optimize_space(arvm_space_t *space) {
 
   qsort(functions, space->size, sizeof(arvm_function_t), cmp_caller_count);
 
+  memset(stack.data, 0, sizeof(*stack.data) * space->size);
+
   for (size_t i = 0; i < space->size; i++) {
-    arvm_function_t func = functions[i];
-
-    // Inline functions calls.
-    // The main part of the algorithm consists of dividing the function domain
-    // into subdomains, operands of which are the operands of each callee on the
-    // given intervals
-    arvm_subdomain_t *opt_domain = NULL;
-    size_t opt_subdomain_idx = 0;
-
-    arvm_subdomain_t *subdomain = func->domain;
-    arvm_int_t subdomain_start = 0; // not inclusive
-    for (;;) {
-      size_t total_operands = 0;
-
-      // Find the minimal interval where all callee subdomains are consistent
-      arvm_subdomain_t **callee_subdomains =
-          malloc(sizeof(arvm_subdomain_t *) * subdomain->operand_count);
-      if (callee_subdomains == NULL)
-        goto malloc_failure;
-
-      arvm_int_t subdomain_end = subdomain->end;
-      for (size_t i = 0; i < subdomain->operand_count; i++) {
-        arvm_operand_t operand = subdomain->operands[i];
-        arvm_function_t callee = operand.func;
-        if (callee == func) {
-          total_operands++;
-          continue;
-        }
-
-        arvm_subdomain_t *callee_subdomain =
-            NULL; // all functions have an implicit subdomain (0; 0] that is
-                  // always false
-        arvm_int_t callee_abs_end = operand.offset;
-        while (callee_abs_end <= subdomain_start) {
-          if (callee_subdomain == NULL)
-            callee_subdomain = callee->domain;
-          else
-            callee_subdomain++;
-          callee_abs_end = arvm_add(callee_subdomain->end, operand.offset);
-        }
-        if (callee_abs_end < subdomain_end)
-          subdomain_end = callee_abs_end;
-
-        callee_subdomains[i] = callee_subdomain;
-
-        if (callee_subdomain != NULL)
-          total_operands += callee_subdomain->operand_count;
-      }
-
-      arvm_subdomain_t *new_domain = realloc(
-          opt_domain, sizeof(arvm_subdomain_t) * (opt_subdomain_idx + 1));
-      if (new_domain == NULL)
-        goto malloc_failure;
-      opt_domain = new_domain;
-
-      arvm_subdomain_t *new_subdomain = &opt_domain[opt_subdomain_idx++];
-      new_subdomain->end = subdomain_end;
-      new_subdomain->operand_count = total_operands;
-      new_subdomain->operands = malloc(sizeof(arvm_operand_t) * total_operands);
-      size_t table_len = arvm_pow2(total_operands);
-      new_subdomain->table = malloc(sizeof(arvm_operand_t) * table_len);
-      if (new_subdomain->operands == NULL || new_subdomain->table == NULL)
-        goto malloc_failure;
-
-      size_t op_i = 0;
-      for (size_t i = 0; i < subdomain->operand_count; i++) {
-        arvm_operand_t operand = subdomain->operands[i];
-        if (operand.func == func) {
-          new_subdomain->operands[op_i++] = operand;
-          continue;
-        }
-
-        arvm_subdomain_t *callee_subdomain = callee_subdomains[i];
-        if (callee_subdomain == NULL)
-          continue;
-        for (size_t j = 0; j < callee_subdomain->operand_count; j++) {
-          arvm_operand_t sub_operand = callee_subdomain->operands[j];
-          sub_operand.offset += subdomain->operands[i].offset;
-          new_subdomain->operands[op_i++] = sub_operand;
-        }
-      }
-
-      for (size_t i = 0; i < table_len; i++) {
-        size_t idx = 0;
-
-        size_t offset = 0;
-        for (size_t j = 0; j < subdomain->operand_count; j++) {
-          arvm_subdomain_t *callee_subdomain = callee_subdomains[j];
-          idx <<= 1;
-          if (subdomain->operands[j].func == func) {
-            offset++;
-            idx |= (i >> (total_operands - offset)) & 1;
-          } else if (callee_subdomain != NULL) {
-            size_t op_count = callee_subdomain->operand_count;
-            offset += op_count;
-            size_t callee_idx =
-                (i >> (total_operands - offset)) & arvm_ones(op_count);
-            idx |= callee_subdomain->table[callee_idx];
-          }
-        }
-
-        new_subdomain->table[i] = subdomain->table[idx];
-      }
-
-      subdomain_start = subdomain_end;
-      if (subdomain_end == subdomain->end) {
-        if (subdomain->end == ARVM_INFINITY)
-          break;
-        else
-          subdomain++;
-      }
-
+    if (functions[i]->state != ARVM_TODO)
       continue;
 
-    malloc_failure:
-      for (size_t i = 0; i < opt_subdomain_idx; i++) {
-        arvm_subdomain_t subdomain = opt_domain[i];
-        free(subdomain.operands);
-        free(subdomain.table);
-      }
-      free(callee_subdomains);
-      free(opt_domain);
-      opt_domain = NULL;
-      break;
-    }
+    functions[i]->state = ARVM_VISITING;
+    stack.data[stack.offset++] =
+        (struct stack_entry){functions[i], functions[i]->domain, 0};
 
-    if (opt_domain != NULL)
-      func->domain = opt_domain;
+    while (stack.offset > 0) {
+      struct stack_entry *entry = &stack.data[stack.offset - 1];
+      if (entry->callee_index < entry->subdomain->operand_count) {
+        arvm_function_t callee =
+            entry->subdomain->operands[entry->callee_index++].func;
+        if (callee->state != ARVM_TODO)
+          continue;
+        callee->state = ARVM_VISITING;
+        stack.data[stack.offset++] =
+            (struct stack_entry){callee, callee->domain, 0};
+      } else if (entry->subdomain->end < ARVM_INFINITY) {
+        entry->subdomain++;
+      } else {
+        stack.offset--;
+        optimize_func(entry->func);
+        entry->func->state = ARVM_VISITED;
+      }
+    }
   }
 
+  free(stack.data);
   free(functions);
 }
 

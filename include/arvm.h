@@ -27,12 +27,16 @@ void arvm_dispose_space(arvm_space_t *space);
 
 void arvm_optimize_space(arvm_space_t *space);
 
-// All unary boolean ArVM IR functions are piecewise defined. The single integer
-// argument t is the current simulation time (tick)
+typedef enum arvm_state { ARVM_TODO, ARVM_VISITED, ARVM_VISITING } arvm_state_t;
+
+// All unary boolean ArVM IR functions are piecewise defined. The single
+// integer argument t is the current simulation time (tick)
 struct arvm_function {
   arvm_space_t *space;
 
   struct {
+    arvm_state_t state;
+
     bool callee_processed;
     size_t caller_count;
   };
