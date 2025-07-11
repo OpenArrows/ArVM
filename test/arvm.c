@@ -12,18 +12,18 @@ void test(void) {
                   h = arvm_new_function(&space);
 
   arvm_set_function_domain(
-      h, (struct arvm_subdomain[]){
+      h, (arvm_subdomain_t[]){
              {ARVM_INFINITY, 0, (arvm_operand_t[]){}, (bool[]){true}},
          });
 
   arvm_set_function_domain(
-      g, (struct arvm_subdomain[]){
+      g, (arvm_subdomain_t[]){
              {ARVM_INFINITY, 2, (arvm_operand_t[]){{f, 1}, {h, 1}},
               (bool[]){false, true, true, false}},
          });
 
   arvm_set_function_domain(
-      f, (struct arvm_subdomain[]){
+      f, (arvm_subdomain_t[]){
              {ARVM_INFINITY, 2, (arvm_operand_t[]){{g, 1}, {h, 1}},
               (bool[]){false, true, true, false}},
          });
