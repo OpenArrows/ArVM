@@ -1,6 +1,8 @@
 #include "arvm.h"
 #include "math.h"
+#include <limits.h>
 #include <stdarg.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -21,13 +23,11 @@ static int cmp_caller_count(const void *a, const void *b) {
   return (a_caller_count > b_caller_count) - (a_caller_count < b_caller_count);
 }
 
-// Inline functions calls. Returns true if at least one call was inlined
+// Inline functions calls.
 // The main part of the algorithm consists of dividing the function domain
 // into subdomains, operands of which are the operands of each callee on the
 // given intervals.
-static bool inline_calls(arvm_function_t func) {
-  bool inlined = false;
-
+static void inline_calls(arvm_function_t func) {
   arvm_subdomain_t *opt_domain = NULL;
   size_t opt_subdomain_idx = 0;
 
@@ -40,7 +40,7 @@ static bool inline_calls(arvm_function_t func) {
     arvm_subdomain_t **callee_subdomains =
         malloc(sizeof(arvm_subdomain_t *) * subdomain->operand_count);
     if (callee_subdomains == NULL)
-      goto malloc_failure;
+      goto cleanup;
 
     arvm_int_t subdomain_end = subdomain->end;
     for (size_t i = 0; i < subdomain->operand_count; i++) {
@@ -51,8 +51,6 @@ static bool inline_calls(arvm_function_t func) {
         total_operands++;
         continue;
       }
-
-      inlined = true;
 
       arvm_subdomain_t *callee_subdomain =
           NULL; // all functions have an implicit subdomain (0; 0] that is
@@ -74,10 +72,13 @@ static bool inline_calls(arvm_function_t func) {
         total_operands += callee_subdomain->operand_count;
     }
 
+    if (total_operands > sizeof(uintmax_t) * CHAR_BIT)
+      goto cleanup;
+
     arvm_subdomain_t *new_domain =
         realloc(opt_domain, sizeof(arvm_subdomain_t) * (opt_subdomain_idx + 1));
     if (new_domain == NULL)
-      goto malloc_failure;
+      goto cleanup;
     opt_domain = new_domain;
 
     arvm_subdomain_t *new_subdomain = &opt_domain[opt_subdomain_idx++];
@@ -87,7 +88,7 @@ static bool inline_calls(arvm_function_t func) {
     size_t table_len = arvm_pow2(total_operands);
     new_subdomain->table = malloc(sizeof(arvm_operand_t) * table_len);
     if (new_subdomain->operands == NULL || new_subdomain->table == NULL)
-      goto malloc_failure;
+      goto cleanup;
 
     size_t op_i = 0;
     for (size_t i = 0; i < subdomain->operand_count; i++) {
@@ -139,7 +140,7 @@ static bool inline_calls(arvm_function_t func) {
 
     continue;
 
-  malloc_failure:
+  cleanup:
     for (size_t i = 0; i < opt_subdomain_idx; i++) {
       arvm_subdomain_t subdomain = opt_domain[i];
       free(subdomain.operands);
@@ -153,8 +154,6 @@ static bool inline_calls(arvm_function_t func) {
 
   if (opt_domain != NULL)
     func->domain = opt_domain;
-
-  return inlined;
 }
 
 static void optimize_func(arvm_function_t func) { inline_calls(func); }
@@ -287,16 +286,16 @@ void arvm_set_function_domain(arvm_function_t func, ...) {
     size_t operands_size = sizeof(arvm_operand_t) * subdomain.operand_count;
     domain[i].operands = malloc(operands_size);
     if (domain[i].operands == NULL)
-      goto malloc_failure;
+      goto cleanup;
     memcpy(domain[i].operands, subdomain.operands, operands_size);
     size_t table_size = sizeof(bool) * arvm_pow2(subdomain.operand_count);
     domain[i].table = malloc(table_size);
     if (domain[i].table == NULL)
-      goto malloc_failure;
+      goto cleanup;
     memcpy(domain[i].table, subdomain.table, table_size);
     continue;
 
-  malloc_failure:
+  cleanup:
     do {
       free(domain[i].operands);
       free(domain[i].table);
