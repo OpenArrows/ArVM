@@ -6,16 +6,17 @@
 #include <stdlib.h>
 #include <string.h>
 
-void arvm_dispose_space(arvm_space_t *space) {
-  arvm_function_t func = space->tail_function;
-  space->tail_function = NULL;
-  while (func != NULL) {
-    arvm_function_t next = func->previous;
-    arvm_delete_function(func);
-    func = next;
-  }
-  space->size = 0;
+static inline arvm_int_t add(arvm_int_t a, arvm_int_t b) {
+  return b > ARVM_INFINITY - a ? ARVM_INFINITY : a + b;
 }
+
+static inline arvm_int_t sub(arvm_int_t a, arvm_int_t b) {
+  return b > a ? 0 : a - b;
+}
+
+static inline arvm_int_t pow2(arvm_int_t x) { return 1 << x; }
+
+static inline arvm_int_t ones(arvm_int_t x) { return pow2(x) - 1; }
 
 static int cmp_caller_count(const void *a, const void *b) {
   size_t a_caller_count = (*(const arvm_function_t *)a)->caller_count;
@@ -27,7 +28,7 @@ static int cmp_caller_count(const void *a, const void *b) {
 // The main part of the algorithm consists of dividing the function domain
 // into subdomains, operands of which are the operands of each callee on the
 // given intervals.
-static void inline_calls(arvm_function_t func) {
+static inline void inline_calls(arvm_function_t func) {
   arvm_subdomain_t *opt_domain = NULL;
   size_t opt_subdomain_idx = 0;
 
@@ -61,7 +62,7 @@ static void inline_calls(arvm_function_t func) {
           callee_subdomain = callee->domain;
         else
           callee_subdomain++;
-        callee_abs_end = arvm_add(callee_subdomain->end, operand.offset);
+        callee_abs_end = add(callee_subdomain->end, operand.offset);
       }
       if (callee_abs_end < subdomain_end)
         subdomain_end = callee_abs_end;
@@ -85,7 +86,7 @@ static void inline_calls(arvm_function_t func) {
     new_subdomain->end = subdomain_end;
     new_subdomain->operand_count = total_operands;
     new_subdomain->operands = malloc(sizeof(arvm_operand_t) * total_operands);
-    size_t table_len = arvm_pow2(total_operands);
+    size_t table_len = pow2(total_operands);
     new_subdomain->table = malloc(sizeof(arvm_operand_t) * table_len);
     if (new_subdomain->operands == NULL || new_subdomain->table == NULL)
       goto cleanup;
@@ -122,7 +123,7 @@ static void inline_calls(arvm_function_t func) {
           size_t op_count = callee_subdomain->operand_count;
           offset += op_count;
           size_t callee_idx =
-              (i >> (total_operands - offset)) & arvm_ones(op_count);
+              (i >> (total_operands - offset)) & ones(op_count);
           idx |= callee_subdomain->table[callee_idx];
         }
       }
@@ -156,7 +157,7 @@ static void inline_calls(arvm_function_t func) {
     func->domain = opt_domain;
 }
 
-static void optimize_func(arvm_function_t func) { inline_calls(func); }
+static inline void optimize_func(arvm_function_t func) { inline_calls(func); }
 
 void arvm_optimize_space(arvm_space_t *space) {
   arvm_function_t *functions = malloc(sizeof(arvm_function_t) * space->size);
@@ -288,7 +289,7 @@ void arvm_set_function_domain(arvm_function_t func, ...) {
     if (domain[i].operands == NULL)
       goto cleanup;
     memcpy(domain[i].operands, subdomain.operands, operands_size);
-    size_t table_size = sizeof(bool) * arvm_pow2(subdomain.operand_count);
+    size_t table_size = sizeof(bool) * pow2(subdomain.operand_count);
     domain[i].table = malloc(table_size);
     if (domain[i].table == NULL)
       goto cleanup;
@@ -339,9 +340,20 @@ bool arvm_call_function(arvm_function_t func, arvm_int_t arg) {
   for (size_t i = 0; i < subdomain->operand_count; i++) {
     arvm_operand_t operand = subdomain->operands[i];
     bool operand_value =
-        arvm_call_function(operand.func, arvm_sub(arg, operand.offset));
+        arvm_call_function(operand.func, sub(arg, operand.offset));
     idx <<= 1;
     idx |= operand_value;
   }
   return subdomain->table[idx];
+}
+
+void arvm_dispose_space(arvm_space_t *space) {
+  arvm_function_t func = space->tail_function;
+  space->tail_function = NULL;
+  while (func != NULL) {
+    arvm_function_t next = func->previous;
+    arvm_delete_function(func);
+    func = next;
+  }
+  space->size = 0;
 }
