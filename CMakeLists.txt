@@ -7,7 +7,7 @@ project(ArVM
     DESCRIPTION "A fast CA backend"
 )
 
-add_library(arvm STATIC arvm.c)
+add_library(arvm STATIC arvm.c bdd.c)
 set_property(TARGET arvm PROPERTY C_STANDARD 23)
 target_include_directories(arvm PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
