@@ -1,6 +1,7 @@
 #ifndef ARVM_H
 #define ARVM_H
 
+#include "bdd.h"
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -34,12 +35,7 @@ typedef enum arvm_state { ARVM_TODO, ARVM_VISITED, ARVM_VISITING } arvm_state_t;
 struct arvm_function {
   arvm_space_t *space;
 
-  struct {
-    arvm_state_t state;
-
-    bool callee_processed;
-    size_t caller_count;
-  };
+  arvm_state_t state;
 
   // The `counterpart` field is set on functions after mirroring operations
   // (i.e. operations that output a synonymous space)
@@ -58,10 +54,7 @@ struct arvm_function {
 // integer
 struct arvm_subdomain {
   arvm_int_t end;
-
-  size_t operand_count;
-  arvm_operand_t *operands;
-  bool *table;
+  arvm_bdd_node_t bdd;
 };
 
 struct arvm_operand {

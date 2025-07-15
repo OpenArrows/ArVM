@@ -11,21 +11,18 @@ void test(void) {
   arvm_function_t f = arvm_new_function(&space), g = arvm_new_function(&space),
                   h = arvm_new_function(&space);
 
-  arvm_set_function_domain(
-      h, (arvm_subdomain_t[]){
-             {ARVM_INFINITY, 0, (arvm_operand_t[]){}, (bool[]){true}},
-         });
+  arvm_set_function_domain(h, (arvm_subdomain_t[]){
+                                  {ARVM_INFINITY, arvm_one()},
+                              });
 
   arvm_set_function_domain(
       g, (arvm_subdomain_t[]){
-             {ARVM_INFINITY, 2, (arvm_operand_t[]){{f, 1}, {h, 1}},
-              (bool[]){false, true, true, false}},
+             {ARVM_INFINITY, arvm_xor(arvm_var(1), arvm_var(3))},
          });
 
   arvm_set_function_domain(
       f, (arvm_subdomain_t[]){
-             {ARVM_INFINITY, 2, (arvm_operand_t[]){{g, 1}, {h, 1}},
-              (bool[]){false, true, true, false}},
+             {ARVM_INFINITY, arvm_xor(arvm_var(2), arvm_var(3))},
          });
 
   arvm_optimize_space(&space);

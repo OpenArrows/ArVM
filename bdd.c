@@ -14,16 +14,16 @@
 // Hash set used to store unique BDD nodes
 // (Empty entries have NULL function reference)
 static struct {
-  arvm_bdd_node_t *nodes;
+  struct arvm_bdd_node *nodes;
   size_t length;
   size_t capacity_bits;
 } node_set = {NULL, 0, 0};
 
 // Leaf node represents boolean true value. False value is obtained through
 // negation of the leaf node
-static arvm_bdd_node_t *leaf_node = NULL, *unaligned_leaf_node = NULL;
+static arvm_bdd_node_t leaf_node = NULL, unaligned_leaf_node = NULL;
 
-static inline size_t node_hash(arvm_bdd_node_t node) {
+static inline size_t node_hash(struct arvm_bdd_node node) {
   const size_t P1 = 12582917;
   const size_t P2 = 4256249;
   return (((size_t)(uintptr_t)node.lo + (size_t)node.var) * P1 +
@@ -32,7 +32,7 @@ static inline size_t node_hash(arvm_bdd_node_t node) {
 }
 
 // Inserts a new node into the set
-static inline arvm_bdd_node_t *put_node(arvm_bdd_node_t node) {
+static inline arvm_bdd_node_t put_node(struct arvm_bdd_node node) {
   size_t capacity = 1 << node_set.capacity_bits;
 
   size_t i = node_hash(node);
@@ -42,7 +42,7 @@ static inline arvm_bdd_node_t *put_node(arvm_bdd_node_t node) {
   }
 
   node_set.length++;
-  arvm_bdd_node_t *node_ptr = node_set.nodes + i;
+  arvm_bdd_node_t node_ptr = node_set.nodes + i;
   if (!IS_2_ALIGNED && ((uintptr_t)node_ptr & 1))
     node_ptr++;
   *node_ptr = node;
@@ -51,12 +51,12 @@ static inline arvm_bdd_node_t *put_node(arvm_bdd_node_t node) {
 
 // Allocates memory for a new BDD node or returns (a negation of) an existing
 // copy
-static inline arvm_bdd_node_t *node_new(arvm_bdd_node_t node) {
+static inline arvm_bdd_node_t node_new(struct arvm_bdd_node node) {
   if (node_set.capacity_bits > 0) {
     size_t capacity = 1 << node_set.capacity_bits;
 
     size_t i = node_hash(node);
-    arvm_bdd_node_t *existing = &node_set.nodes[i];
+    arvm_bdd_node_t existing = &node_set.nodes[i];
     while ((existing = &node_set.nodes[i++])->var != 0) {
       if (existing->var == node.var) {
         if (existing->lo == node.lo && existing->hi == node.hi)
@@ -75,16 +75,16 @@ static inline arvm_bdd_node_t *node_new(arvm_bdd_node_t node) {
       if (++node_set.capacity_bits > sizeof(size_t) * CHAR_BIT)
         return NULL; // overflow
 
-      arvm_bdd_node_t *old_nodes = node_set.nodes;
+      struct arvm_bdd_node *old_nodes = node_set.nodes;
 
       size_t new_capacity = 1 << node_set.capacity_bits;
-      node_set.nodes =
-          calloc(new_capacity + 1 * !IS_2_ALIGNED, sizeof(arvm_bdd_node_t));
+      node_set.nodes = calloc(new_capacity + 1 * !IS_2_ALIGNED,
+                              sizeof(struct arvm_bdd_node));
       if (node_set.nodes == NULL)
         return NULL;
 
       for (size_t i = 0; i < new_capacity; i++) {
-        arvm_bdd_node_t node = old_nodes[i];
+        struct arvm_bdd_node node = old_nodes[i];
         if (node.var != 0)
           put_node(node);
       }
@@ -102,26 +102,22 @@ static inline arvm_bdd_node_t *node_new(arvm_bdd_node_t node) {
   return put_node(node);
 }
 
-static inline arvm_bdd_node_t *bdd_var(size_t var) {
-  return node_new((arvm_bdd_node_t){var, arvm_zero(), arvm_one()});
-}
-
 // Convinience function for constructing BDD nodes
-static inline arvm_bdd_node_t *bdd(size_t var, arvm_bdd_node_t *lo,
-                                   arvm_bdd_node_t *hi) {
+static inline arvm_bdd_node_t bdd(size_t var, arvm_bdd_node_t lo,
+                                  arvm_bdd_node_t hi) {
   if (lo == NULL || hi == NULL)
     return NULL;
 
   if (lo == arvm_one() && hi == arvm_zero())
-    return arvm_not(bdd_var(var));
+    return arvm_not(node_new((struct arvm_bdd_node){var, hi, lo}));
 
   if (lo == hi)
     return lo;
-  return node_new((arvm_bdd_node_t){var, lo, hi});
+  return node_new((struct arvm_bdd_node){var, lo, hi});
 }
 
 // Returns the BDD leaf node
-static arvm_bdd_node_t *get_leaf_node() {
+static arvm_bdd_node_t get_leaf_node() {
   if (leaf_node == NULL) {
     leaf_node = unaligned_leaf_node = calloc(1, sizeof(arvm_bdd_node_t));
     if (!IS_2_ALIGNED && ((uintptr_t)leaf_node & 1))
@@ -130,26 +126,56 @@ static arvm_bdd_node_t *get_leaf_node() {
   return leaf_node;
 }
 
-static inline bool is_leaf(arvm_bdd_node_t *node) {
-  return (arvm_bdd_node_t *)((uintptr_t)node & ~1) == leaf_node;
-}
-
 // Public API
 
-arvm_bdd_node_t *arvm_one() { return get_leaf_node(); }
-
-arvm_bdd_node_t *arvm_zero() {
-  return (arvm_bdd_node_t *)((uintptr_t)get_leaf_node() | 1);
+bool arvm_is_const(arvm_bdd_node_t node) {
+  return (arvm_bdd_node_t)((uintptr_t)node & ~1) == leaf_node;
 }
 
-arvm_bdd_node_t *arvm_not(arvm_bdd_node_t *a) {
+arvm_bdd_node_t arvm_one() { return get_leaf_node(); }
+
+arvm_bdd_node_t arvm_zero() {
+  return (arvm_bdd_node_t)((uintptr_t)get_leaf_node() | 1);
+}
+
+arvm_bdd_node_t arvm_var(arvm_var_index_t var) {
+  return bdd(var, arvm_zero(), arvm_one());
+}
+
+arvm_bdd_node_t arvm_not(arvm_bdd_node_t a) {
   if (a == NULL)
     return NULL;
 
-  return (arvm_bdd_node_t *)((uintptr_t)a ^ 1);
+  return (arvm_bdd_node_t)((uintptr_t)a ^ 1);
 }
 
-arvm_bdd_node_t *arvm_and(arvm_bdd_node_t *a, arvm_bdd_node_t *b) {
+arvm_bdd_node_t arvm_ite(arvm_bdd_node_t a, arvm_bdd_node_t b,
+                         arvm_bdd_node_t c) {
+  if (a == NULL || b == NULL || c == NULL)
+    return NULL;
+
+  if (a == arvm_one())
+    return b;
+  else if (a == arvm_zero())
+    return c;
+
+  if (b == c)
+    return b;
+
+  arvm_var_index_t v = a->var;
+  if (b->var < v)
+    v = b->var;
+  if (c->var < v)
+    v = c->var;
+
+  return bdd(v,
+             arvm_ite(v < a->var ? a : a->hi, v < b->var ? b : b->hi,
+                      v < c->var ? c : c->hi),
+             arvm_ite(v < a->var ? a : a->lo, v < b->var ? b : b->lo,
+                      v < c->var ? c : c->lo));
+}
+
+arvm_bdd_node_t arvm_and(arvm_bdd_node_t a, arvm_bdd_node_t b) {
   if (a == NULL || b == NULL)
     return NULL;
 
@@ -169,16 +195,23 @@ arvm_bdd_node_t *arvm_and(arvm_bdd_node_t *a, arvm_bdd_node_t *b) {
     return bdd(a->var, arvm_and(a->lo, b->lo), arvm_and(a->hi, b->hi));
 }
 
-arvm_bdd_node_t *arvm_or(arvm_bdd_node_t *a, arvm_bdd_node_t *b) {
+arvm_bdd_node_t arvm_or(arvm_bdd_node_t a, arvm_bdd_node_t b) {
   return arvm_not(arvm_and(arvm_not(a), arvm_not(b)));
 }
 
-arvm_bdd_node_t *arvm_xor(arvm_bdd_node_t *a, arvm_bdd_node_t *b) {
+arvm_bdd_node_t arvm_xor(arvm_bdd_node_t a, arvm_bdd_node_t b) {
   if (a == NULL || b == NULL)
     return NULL;
 
-  if (is_leaf(a) && is_leaf(b))
-    return a == b ? arvm_zero() : arvm_one();
+  if (a == arvm_zero())
+    return b;
+  else if (b == arvm_zero())
+    return a;
+
+  if (a == arvm_one())
+    return arvm_not(b);
+  else if (b == arvm_one())
+    return arvm_not(a);
 
   if (a->var < b->var)
     return bdd(b->var, arvm_xor(a, b->lo), arvm_xor(a, b->hi));
