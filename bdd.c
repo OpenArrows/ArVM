@@ -56,17 +56,18 @@ static inline arvm_bdd_node_t node_new(struct arvm_bdd_node node) {
     size_t capacity = 1 << node_set.capacity_bits;
 
     size_t i = node_hash(node);
-    arvm_bdd_node_t existing = &node_set.nodes[i];
+    arvm_bdd_node_t existing;
     while ((existing = &node_set.nodes[i++])->var != 0) {
-      if (existing->var == node.var) {
-        if (existing->lo == node.lo && existing->hi == node.hi)
-          return existing;
-        else if (existing->hi == node.lo && existing->lo == node.hi)
-          return arvm_not(existing);
-      }
+      if (existing->var == node.var && existing->lo == node.lo &&
+          existing->hi == node.hi)
+        return existing;
+    }
 
-      if (i == capacity)
-        i = 0;
+    i = node_hash((struct arvm_bdd_node){node.var, node.hi, node.lo});
+    while ((existing = &node_set.nodes[i++])->var != 0) {
+      if (existing->var == node.var && existing->lo == node.hi &&
+          existing->hi == node.lo)
+        return arvm_not(existing);
     }
 
     if (node_set.length >= capacity) {
