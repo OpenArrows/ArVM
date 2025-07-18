@@ -8,66 +8,64 @@
 
 typedef uintmax_t arvm_int_t;
 
-#define ARVM_FALSE 0
-#define ARVM_TRUE 1
-
 #define ARVM_INFINITY UINTMAX_MAX
 
 typedef struct arvm_function *arvm_function_t;
 
 typedef struct arvm_subdomain arvm_subdomain_t;
 
-typedef struct arvm_operand arvm_operand_t;
+typedef arvm_bdd_node_t arvm_expr_t;
 
 typedef struct arvm_space {
   size_t size;
   arvm_function_t tail_function;
+
+  arvm_bdd_manager_t bdd_mgr;
+  struct {
+    struct arvm_bdd_var_entry *entries;
+    size_t length;
+    size_t capacity_bits;
+  } var_map;
+  struct arvm_bdd_var *vars;
+  size_t var_index;
 } arvm_space_t;
 
 void arvm_dispose_space(arvm_space_t *space);
 
-void arvm_optimize_space(arvm_space_t *space);
+void arvm_prepare_space(arvm_space_t *space);
 
-typedef enum arvm_state { ARVM_TODO, ARVM_VISITED, ARVM_VISITING } arvm_state_t;
-
-// All unary boolean ArVM IR functions are piecewise defined. The single
-// integer argument t is the current simulation time (tick)
-struct arvm_function {
-  arvm_space_t *space;
-
-  arvm_state_t state;
-
-  // The `counterpart` field is set on functions after mirroring operations
-  // (i.e. operations that output a synonymous space)
-  arvm_function_t counterpart;
-
-  struct {
-    arvm_function_t previous;
-    arvm_function_t next;
-  };
-
-  arvm_subdomain_t *domain;
-};
-
-// Each subdomain (interval) of the function is defined by a truth table, with
+// Each subdomain (interval) of a function is defined by a truth table, with
 // operands being function values at (t - C), where C is a constant positive
 // integer
 struct arvm_subdomain {
   arvm_int_t end;
-  arvm_bdd_node_t bdd;
-};
-
-struct arvm_operand {
-  arvm_function_t func;
-  arvm_int_t offset;
+  arvm_expr_t value;
 };
 
 arvm_function_t arvm_new_function(arvm_space_t *space);
+
+arvm_expr_t arvm_make_true(arvm_space_t *space);
+
+arvm_expr_t arvm_make_false(arvm_space_t *space);
+
+arvm_expr_t arvm_make_call(arvm_space_t *space, arvm_function_t callee,
+                           arvm_int_t offset);
+
+arvm_expr_t arvm_not(arvm_expr_t a);
+
+arvm_expr_t arvm_make_ite(arvm_space_t *space, arvm_expr_t a, arvm_expr_t b,
+                          arvm_expr_t c);
+
+arvm_expr_t arvm_make_and(arvm_space_t *space, arvm_expr_t a, arvm_expr_t b);
+
+arvm_expr_t arvm_make_or(arvm_space_t *space, arvm_expr_t a, arvm_expr_t b);
+
+arvm_expr_t arvm_make_xor(arvm_space_t *space, arvm_expr_t a, arvm_expr_t b);
 
 void arvm_set_function_domain(arvm_function_t func, ...);
 
 void arvm_delete_function(arvm_function_t func);
 
-bool arvm_call_function(arvm_function_t func, arvm_int_t arg);
+bool arvm_call_function(arvm_function_t func, arvm_int_t t);
 
 #endif /* ARVM_H */

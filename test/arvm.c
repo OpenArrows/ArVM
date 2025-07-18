@@ -12,20 +12,22 @@ void test(void) {
                   h = arvm_new_function(&space);
 
   arvm_set_function_domain(h, (arvm_subdomain_t[]){
-                                  {ARVM_INFINITY, arvm_one()},
+                                  {ARVM_INFINITY, arvm_make_true(&space)},
                               });
 
   arvm_set_function_domain(
       g, (arvm_subdomain_t[]){
-             {ARVM_INFINITY, arvm_xor(arvm_var(1), arvm_var(3))},
+             {ARVM_INFINITY, arvm_make_xor(&space, arvm_make_call(&space, f, 1),
+                                           arvm_make_call(&space, h, 1))},
          });
 
   arvm_set_function_domain(
       f, (arvm_subdomain_t[]){
-             {ARVM_INFINITY, arvm_xor(arvm_var(2), arvm_var(3))},
+             {ARVM_INFINITY, arvm_make_xor(&space, arvm_make_call(&space, g, 1),
+                                           arvm_make_call(&space, h, 1))},
          });
 
-  arvm_optimize_space(&space);
+  arvm_prepare_space(&space);
 
   TEST_ASSERT_FALSE(arvm_call_function(g, 0));
   TEST_ASSERT_FALSE(arvm_call_function(g, 1));
