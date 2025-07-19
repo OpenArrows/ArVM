@@ -71,7 +71,7 @@ static void tarjan_visit_bdd(arvm_space_t *space, tarjan_vertex_t *v,
   if (arvm_bdd_is_leaf(&space->bdd_mgr, bdd))
     return;
 
-  arvm_function_t func = space->vars[bdd->var].callee;
+  arvm_function_t func = space->vars[arvm_bdd_get_var(bdd)].callee;
 
   tarjan_vertex_t *w = &vert[func->id];
   if (w->index == 0) {
@@ -92,8 +92,10 @@ static void tarjan_visit_bdd(arvm_space_t *space, tarjan_vertex_t *v,
     } while (w != v);
   }
 
-  tarjan_visit_bdd(space, v, bdd->lo, vert, stack, index, scc_index);
-  tarjan_visit_bdd(space, v, bdd->hi, vert, stack, index, scc_index);
+  tarjan_visit_bdd(space, v, arvm_bdd_get_low(bdd), vert, stack, index,
+                   scc_index);
+  tarjan_visit_bdd(space, v, arvm_bdd_get_high(bdd), vert, stack, index,
+                   scc_index);
 }
 
 static void tarjan_strongconnect(arvm_space_t *space, arvm_function_t func,
@@ -269,15 +271,15 @@ arvm_expr_t arvm_make_ite(arvm_space_t *space, arvm_expr_t a, arvm_expr_t b,
 }
 
 arvm_expr_t arvm_make_and(arvm_space_t *space, arvm_expr_t a, arvm_expr_t b) {
-  return arvm_bdd_and(&space->bdd_mgr, a, b);
+  return arvm_make_ite(space, a, b, arvm_make_false(space));
 }
 
 arvm_expr_t arvm_make_or(arvm_space_t *space, arvm_expr_t a, arvm_expr_t b) {
-  return arvm_bdd_or(&space->bdd_mgr, a, b);
+  return arvm_not(arvm_make_and(space, arvm_not(a), arvm_not(b)));
 }
 
 arvm_expr_t arvm_make_xor(arvm_space_t *space, arvm_expr_t a, arvm_expr_t b) {
-  return arvm_bdd_xor(&space->bdd_mgr, a, b);
+  return arvm_make_ite(space, a, arvm_not(b), b);
 }
 
 void arvm_set_function_domain(arvm_function_t func, ...) {
@@ -330,9 +332,10 @@ bool arvm_call_function(arvm_function_t func, arvm_int_t t) {
 
   arvm_bdd_node_t bdd = subdomain->value;
   while (!arvm_bdd_is_leaf(&func->space->bdd_mgr, bdd)) {
-    struct arvm_bdd_var var = func->space->vars[bdd->var];
-    bdd =
-        arvm_call_function(var.callee, sub(t, var.offset)) ? bdd->hi : bdd->lo;
+    struct arvm_bdd_var var = func->space->vars[arvm_bdd_get_var(bdd)];
+    bdd = arvm_call_function(var.callee, sub(t, var.offset))
+              ? arvm_bdd_get_high(bdd)
+              : arvm_bdd_get_low(bdd);
   }
   return bdd == arvm_bdd_one(&func->space->bdd_mgr);
 }

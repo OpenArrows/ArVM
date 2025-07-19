@@ -11,6 +11,12 @@
 // We must manually align all pointers on systems that are not 2-aligned
 #define IS_2_ALIGNED (alignof(max_align_t) >= 2)
 
+struct arvm_bdd_node {
+  arvm_bdd_var_id_t var;
+  arvm_bdd_node_t lo;
+  arvm_bdd_node_t hi;
+};
+
 static inline size_t node_hash(arvm_bdd_manager_t *mgr,
                                struct arvm_bdd_node node) {
   const size_t P1 = 12582917;
@@ -26,7 +32,7 @@ static inline arvm_bdd_node_t put_node(arvm_bdd_manager_t *mgr,
   size_t capacity = 1 << mgr->node_set.capacity_bits;
 
   size_t i = node_hash(mgr, node);
-  while (mgr->node_set.nodes[i].var != 0) {
+  while (mgr->node_set.nodes[i].lo != NULL) {
     if (++i >= capacity)
       i = 0;
   }
@@ -48,7 +54,7 @@ static inline arvm_bdd_node_t node_new(arvm_bdd_manager_t *mgr,
 
     size_t i = node_hash(mgr, node);
     arvm_bdd_node_t existing;
-    while ((existing = &mgr->node_set.nodes[i++])->var != 0) {
+    while ((existing = &mgr->node_set.nodes[i++])->lo != NULL) {
       if (existing->var == node.var && existing->lo == node.lo &&
           existing->hi == node.hi)
         return existing;
@@ -58,7 +64,7 @@ static inline arvm_bdd_node_t node_new(arvm_bdd_manager_t *mgr,
     }
 
     i = node_hash(mgr, (struct arvm_bdd_node){node.var, node.hi, node.lo});
-    while ((existing = &mgr->node_set.nodes[i++])->var != 0) {
+    while ((existing = &mgr->node_set.nodes[i++])->lo != NULL) {
       if (existing->var == node.var && existing->lo == node.hi &&
           existing->hi == node.lo)
         return arvm_bdd_not(existing);
@@ -86,7 +92,7 @@ static inline arvm_bdd_node_t node_new(arvm_bdd_manager_t *mgr,
 
       for (size_t i = 0; i < new_capacity; i++) {
         struct arvm_bdd_node node = old_nodes[i];
-        if (node.var != 0)
+        if (node.lo != NULL)
           put_node(mgr, node);
       }
 
@@ -106,7 +112,7 @@ static inline arvm_bdd_node_t node_new(arvm_bdd_manager_t *mgr,
 
 // Convinience function for constructing BDD nodes
 static inline arvm_bdd_node_t bdd(arvm_bdd_manager_t *mgr, size_t var,
-                                  arvm_bdd_node_t lo, arvm_bdd_node_t hi) {
+                                  arvm_bdd_node_t hi, arvm_bdd_node_t lo) {
   if (lo == NULL || hi == NULL)
     return NULL;
 
@@ -129,10 +135,32 @@ static arvm_bdd_node_t get_leaf_node(arvm_bdd_manager_t *mgr) {
   return mgr->leaf_node;
 }
 
+static inline arvm_bdd_node_t node_norm(arvm_bdd_node_t node) {
+  return (arvm_bdd_node_t)((uintptr_t)node & ~1);
+}
+
+static inline bool node_is_neg(arvm_bdd_node_t node) {
+  return (uintptr_t)node & 1;
+}
+
 // Public API
 
 bool arvm_bdd_is_leaf(arvm_bdd_manager_t *mgr, arvm_bdd_node_t node) {
-  return (arvm_bdd_node_t)((uintptr_t)node & ~1) == mgr->leaf_node;
+  return node_norm(node) == mgr->leaf_node;
+}
+
+arvm_bdd_var_id_t arvm_bdd_get_var(arvm_bdd_node_t node) {
+  return node_norm(node)->var;
+}
+
+arvm_bdd_node_t arvm_bdd_get_low(arvm_bdd_node_t node) {
+  arvm_bdd_node_t norm = node_norm(node);
+  return node_is_neg(node) ? norm->hi : norm->lo;
+}
+
+arvm_bdd_node_t arvm_bdd_get_high(arvm_bdd_node_t node) {
+  arvm_bdd_node_t norm = node_norm(node);
+  return node_is_neg(node) ? norm->lo : norm->hi;
 }
 
 arvm_bdd_node_t arvm_bdd_one(arvm_bdd_manager_t *mgr) {
@@ -147,92 +175,64 @@ arvm_bdd_node_t arvm_bdd_var(arvm_bdd_manager_t *mgr, arvm_bdd_var_id_t var) {
   return bdd(mgr, var, arvm_bdd_zero(mgr), arvm_bdd_one(mgr));
 }
 
-arvm_bdd_node_t arvm_bdd_not(arvm_bdd_node_t a) {
-  if (a == NULL)
+arvm_bdd_node_t arvm_bdd_not(arvm_bdd_node_t f) {
+  if (f == NULL)
     return NULL;
 
-  return (arvm_bdd_node_t)((uintptr_t)a ^ 1);
+  return (arvm_bdd_node_t)((uintptr_t)f ^ 1);
 }
 
-arvm_bdd_node_t arvm_bdd_ite(arvm_bdd_manager_t *mgr, arvm_bdd_node_t a,
-                             arvm_bdd_node_t b, arvm_bdd_node_t c) {
-  if (a == NULL || b == NULL || c == NULL)
+arvm_bdd_node_t arvm_bdd_restrict(arvm_bdd_manager_t *mgr, arvm_bdd_node_t f,
+                                  arvm_bdd_var_id_t var, bool val) {
+  if (f == NULL)
     return NULL;
 
-  if (a == arvm_bdd_one(mgr))
-    return b;
-  else if (a == arvm_bdd_zero(mgr))
-    return c;
+  if (arvm_bdd_is_leaf(mgr, f))
+    return f;
 
-  if (b == c)
-    return b;
-
-  arvm_bdd_var_id_t v = a->var;
-  if (b->var < v)
-    v = b->var;
-  if (c->var < v)
-    v = c->var;
-
-  return bdd(mgr, v,
-             arvm_bdd_ite(mgr, v < a->var ? a : a->hi, v < b->var ? b : b->hi,
-                          v < c->var ? c : c->hi),
-             arvm_bdd_ite(mgr, v < a->var ? a : a->lo, v < b->var ? b : b->lo,
-                          v < c->var ? c : c->lo));
-}
-
-arvm_bdd_node_t arvm_bdd_and(arvm_bdd_manager_t *mgr, arvm_bdd_node_t a,
-                             arvm_bdd_node_t b) {
-  if (a == NULL || b == NULL)
-    return NULL;
-
-  if (a == arvm_bdd_zero(mgr) || b == arvm_bdd_zero(mgr))
-    return arvm_bdd_zero(mgr);
-
-  if (a == arvm_bdd_one(mgr))
-    return b;
-  else if (b == arvm_bdd_one(mgr))
-    return a;
-
-  if (a->var < b->var)
-    return bdd(mgr, b->var, arvm_bdd_and(mgr, a, b->lo),
-               arvm_bdd_and(mgr, a, b->hi));
-  else if (a->var < b->var)
-    return bdd(mgr, a->var, arvm_bdd_and(mgr, a->lo, b),
-               arvm_bdd_and(mgr, a->hi, b));
+  arvm_bdd_var_id_t x = arvm_bdd_get_var(f);
+  if (x > var)
+    return f;
+  else if (x < var)
+    return bdd(mgr, x, arvm_bdd_restrict(mgr, arvm_bdd_get_high(f), var, val),
+               arvm_bdd_restrict(mgr, arvm_bdd_get_low(f), var, val));
   else
-    return bdd(mgr, a->var, arvm_bdd_and(mgr, a->lo, b->lo),
-               arvm_bdd_and(mgr, a->hi, b->hi));
+    // TODO: can this be just `val ? hi : lo`?
+    return val ? arvm_bdd_restrict(mgr, arvm_bdd_get_high(f), var, val)
+               : arvm_bdd_restrict(mgr, arvm_bdd_get_low(f), var, val);
 }
 
-arvm_bdd_node_t arvm_bdd_or(arvm_bdd_manager_t *mgr, arvm_bdd_node_t a,
-                            arvm_bdd_node_t b) {
-  return arvm_bdd_not(arvm_bdd_and(mgr, arvm_bdd_not(a), arvm_bdd_not(b)));
-}
-
-arvm_bdd_node_t arvm_bdd_xor(arvm_bdd_manager_t *mgr, arvm_bdd_node_t a,
-                             arvm_bdd_node_t b) {
-  if (a == NULL || b == NULL)
+arvm_bdd_node_t arvm_bdd_ite(arvm_bdd_manager_t *mgr, arvm_bdd_node_t f,
+                             arvm_bdd_node_t g, arvm_bdd_node_t h) {
+  if (f == NULL || g == NULL || h == NULL)
     return NULL;
 
-  if (a == arvm_bdd_zero(mgr))
-    return b;
-  else if (b == arvm_bdd_zero(mgr))
-    return a;
+  if (f == arvm_bdd_one(mgr))
+    return g;
+  else if (f == arvm_bdd_zero(mgr))
+    return h;
 
-  if (a == arvm_bdd_one(mgr))
-    return arvm_bdd_not(b);
-  else if (b == arvm_bdd_one(mgr))
-    return arvm_bdd_not(a);
+  if (g == h)
+    return g;
 
-  if (a->var < b->var)
-    return bdd(mgr, b->var, arvm_bdd_xor(mgr, a, b->lo),
-               arvm_bdd_xor(mgr, a, b->hi));
-  else if (a->var < b->var)
-    return bdd(mgr, a->var, arvm_bdd_xor(mgr, a->lo, b),
-               arvm_bdd_xor(mgr, a->hi, b));
-  else
-    return bdd(mgr, a->var, arvm_bdd_xor(mgr, a->lo, b->lo),
-               arvm_bdd_xor(mgr, a->hi, b->hi));
+  if (g == arvm_bdd_one(mgr) && h == arvm_bdd_zero(mgr))
+    return f;
+  else if (g == arvm_bdd_zero(mgr) && h == arvm_bdd_one(mgr))
+    return arvm_bdd_not(f);
+
+  arvm_bdd_var_id_t split = arvm_bdd_get_var(f);
+  if (arvm_bdd_get_var(g) < split)
+    split = arvm_bdd_get_var(g);
+  if (arvm_bdd_get_var(h) < split)
+    split = arvm_bdd_get_var(h);
+
+  return bdd(mgr, split,
+             arvm_bdd_ite(mgr, arvm_bdd_restrict(mgr, f, split, true),
+                          arvm_bdd_restrict(mgr, g, split, true),
+                          arvm_bdd_restrict(mgr, h, split, true)),
+             arvm_bdd_ite(mgr, arvm_bdd_restrict(mgr, f, split, false),
+                          arvm_bdd_restrict(mgr, g, split, false),
+                          arvm_bdd_restrict(mgr, h, split, false)));
 }
 
 arvm_bdd_node_t arvm_bdd_free(arvm_bdd_manager_t *mgr) {

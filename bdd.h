@@ -7,15 +7,9 @@ typedef size_t arvm_bdd_var_id_t;
 
 typedef struct arvm_bdd_node *arvm_bdd_node_t;
 
-struct arvm_bdd_node {
-  arvm_bdd_var_id_t var;
-  arvm_bdd_node_t lo;
-  arvm_bdd_node_t hi;
-};
-
 typedef struct arvm_bdd_manager {
   // Hash set used to store unique BDD nodes
-  // (Empty entries have NULL function reference)
+  // (Empty entries have NULL children)
   struct {
     struct arvm_bdd_node *nodes;
     size_t length;
@@ -29,25 +23,25 @@ typedef struct arvm_bdd_manager {
 
 bool arvm_bdd_is_leaf(arvm_bdd_manager_t *mgr, arvm_bdd_node_t node);
 
+arvm_bdd_var_id_t arvm_bdd_get_var(arvm_bdd_node_t node);
+
+arvm_bdd_node_t arvm_bdd_get_low(arvm_bdd_node_t node);
+
+arvm_bdd_node_t arvm_bdd_get_high(arvm_bdd_node_t node);
+
 arvm_bdd_node_t arvm_bdd_one(arvm_bdd_manager_t *mgr);
 
 arvm_bdd_node_t arvm_bdd_zero(arvm_bdd_manager_t *mgr);
 
 arvm_bdd_node_t arvm_bdd_var(arvm_bdd_manager_t *mgr, arvm_bdd_var_id_t var);
 
-arvm_bdd_node_t arvm_bdd_ite(arvm_bdd_manager_t *mgr, arvm_bdd_node_t a,
-                             arvm_bdd_node_t b, arvm_bdd_node_t c);
+arvm_bdd_node_t arvm_bdd_not(arvm_bdd_node_t f);
 
-arvm_bdd_node_t arvm_bdd_not(arvm_bdd_node_t a);
+arvm_bdd_node_t arvm_bdd_restrict(arvm_bdd_manager_t *mgr, arvm_bdd_node_t f,
+                                  arvm_bdd_var_id_t var, bool val);
 
-arvm_bdd_node_t arvm_bdd_and(arvm_bdd_manager_t *mgr, arvm_bdd_node_t a,
-                             arvm_bdd_node_t b);
-
-arvm_bdd_node_t arvm_bdd_or(arvm_bdd_manager_t *mgr, arvm_bdd_node_t a,
-                            arvm_bdd_node_t b);
-
-arvm_bdd_node_t arvm_bdd_xor(arvm_bdd_manager_t *mgr, arvm_bdd_node_t a,
-                             arvm_bdd_node_t b);
+arvm_bdd_node_t arvm_bdd_ite(arvm_bdd_manager_t *mgr, arvm_bdd_node_t f,
+                             arvm_bdd_node_t g, arvm_bdd_node_t h);
 
 arvm_bdd_node_t arvm_bdd_free(arvm_bdd_manager_t *mgr);
 
