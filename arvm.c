@@ -83,15 +83,6 @@ static void tarjan_visit_bdd(arvm_space_t *space, tarjan_vertex_t *v,
       v->lowlink = w->index;
   }
 
-  if (v->lowlink == v->index) {
-    do {
-      func = ARVM_ST_POP(stack);
-      w = &vert[func->id];
-      w->on_stack = false;
-      func->scc = (*scc_index)++;
-    } while (w != v);
-  }
-
   tarjan_visit_bdd(space, v, arvm_bdd_get_low(bdd), vert, stack, index,
                    scc_index);
   tarjan_visit_bdd(space, v, arvm_bdd_get_high(bdd), vert, stack, index,
@@ -112,6 +103,18 @@ static void tarjan_strongconnect(arvm_space_t *space, arvm_function_t func,
   do {
     tarjan_visit_bdd(space, v, subdomain->value, vert, stack, index, scc_index);
   } while (subdomain->end != ARVM_INFINITY);
+
+  if (v->lowlink == v->index) {
+    size_t scc = (*scc_index)++;
+
+    tarjan_vertex_t *w;
+    do {
+      func = ARVM_ST_POP(stack);
+      w = &vert[func->id];
+      w->on_stack = false;
+      func->scc = scc;
+    } while (w != v);
+  }
 }
 
 // Find the SCCs of the call graph. Each SCC will be assigned a unique ID
@@ -132,7 +135,7 @@ static inline bool tarjan(arvm_space_t *space) {
     goto tarjan_cleanup;
   }
 
-  size_t index = 1, scc_index = 0;
+  size_t index = 1, scc_index = 1;
   for (arvm_function_t func = space->tail_function; func != NULL;
        func = func->previous) {
     if (vert[func->id].index == 0)
@@ -165,6 +168,7 @@ arvm_function_t arvm_new_function(arvm_space_t *space) {
     return NULL;
   func->space = space;
   func->domain = NULL;
+  func->scc = 0;
   func->id = 0;
   func->next = NULL;
   func->previous = space->tail_function;
