@@ -46,6 +46,7 @@ struct arvm_bdd_var_entry {
   size_t index;
 };
 
+// TODO: remove this
 static inline arvm_int_t add(arvm_int_t a, arvm_int_t b) {
   return b > ARVM_INFINITY - a ? ARVM_INFINITY : a + b;
 }
