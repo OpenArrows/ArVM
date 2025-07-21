@@ -1,6 +1,7 @@
 #include "arvm.h"
 #include "bdd.h"
 #include "stack.h"
+#include <assert.h>
 #include <limits.h>
 #include <stdarg.h>
 #include <stdint.h>
@@ -17,12 +18,12 @@ struct arvm_function {
     arvm_function_t next;
   };
 
+  struct {
+    bool curr, prev;
+    arvm_int_t time;
+  } state;
+
   arvm_subdomain_t *domain;
-
-  size_t scc;
-
-  // Used internally to store some additional data alongside functions
-  size_t id;
 };
 
 typedef ARVM_STACK(arvm_function_t) arvm_func_stack_t;
@@ -31,12 +32,11 @@ typedef ARVM_STACK(arvm_function_t) arvm_func_stack_t;
 
 struct arvm_bdd_var {
   arvm_function_t callee;
-  arvm_int_t offset;
 };
 
 static inline size_t var_hash(arvm_space_t *space, struct arvm_bdd_var var) {
   const size_t P1 = 12582917;
-  return (((size_t)(uintptr_t)var.callee + (size_t)var.offset) * P1) >>
+  return ((size_t)(uintptr_t)var.callee * P1) >>
          (sizeof(size_t) * CHAR_BIT - space->var_map.capacity_bits);
 }
 
@@ -46,132 +46,64 @@ struct arvm_bdd_var_entry {
   size_t index;
 };
 
-// TODO: remove this
-static inline arvm_int_t add(arvm_int_t a, arvm_int_t b) {
-  return b > ARVM_INFINITY - a ? ARVM_INFINITY : a + b;
-}
-
-static inline arvm_int_t sub(arvm_int_t a, arvm_int_t b) {
-  return b > a ? 0 : a - b;
-}
-
-typedef struct tarjan_vertex {
-  size_t index, lowlink;
-  bool on_stack;
-} tarjan_vertex_t;
-
-static void tarjan_strongconnect(arvm_space_t *space, arvm_function_t func,
-                                 tarjan_vertex_t *vert,
-                                 arvm_func_stack_t *stack, size_t *index,
-                                 size_t *scc_index);
-
-static void tarjan_visit_bdd(arvm_space_t *space, tarjan_vertex_t *v,
-                             arvm_bdd_node_t bdd, tarjan_vertex_t *vert,
-                             arvm_func_stack_t *stack, size_t *index,
-                             size_t *scc_index) {
-  if (arvm_bdd_is_leaf(&space->bdd_mgr, bdd))
+void arvm_set_space_time(arvm_space_t *space, arvm_int_t time) {
+  if (time < space->time)
     return;
 
-  arvm_function_t func = space->vars[arvm_bdd_get_var(bdd)].callee;
-
-  tarjan_vertex_t *w = &vert[func->id];
-  if (w->index == 0) {
-    tarjan_strongconnect(space, func, vert, stack, index, scc_index);
-    if (w->lowlink < v->lowlink)
-      v->lowlink = w->lowlink;
-  } else if (w->on_stack) {
-    if (w->index < v->lowlink)
-      v->lowlink = w->index;
-  }
-
-  tarjan_visit_bdd(space, v, arvm_bdd_get_low(bdd), vert, stack, index,
-                   scc_index);
-  tarjan_visit_bdd(space, v, arvm_bdd_get_high(bdd), vert, stack, index,
-                   scc_index);
-}
-
-static void tarjan_strongconnect(arvm_space_t *space, arvm_function_t func,
-                                 tarjan_vertex_t *vert,
-                                 arvm_func_stack_t *stack, size_t *index,
-                                 size_t *scc_index) {
-  tarjan_vertex_t *v = &vert[func->id];
-  v->index = v->lowlink = (*index)++;
-
-  ARVM_ST_PUSH(stack, func);
-  v->on_stack = true;
-
-  arvm_subdomain_t *subdomain = func->domain;
-  do {
-    tarjan_visit_bdd(space, v, subdomain->value, vert, stack, index, scc_index);
-  } while (subdomain->end != ARVM_INFINITY);
-
-  if (v->lowlink == v->index) {
-    size_t scc = (*scc_index)++;
-
-    tarjan_vertex_t *w;
-    do {
-      func = ARVM_ST_POP(stack);
-      w = &vert[func->id];
-      w->on_stack = false;
-      func->scc = scc;
-    } while (w != v);
-  }
-}
-
-// Find the SCCs of the call graph. Each SCC will be assigned a unique ID
-// https://en.wikipedia.org/wiki/Tarjan%27s_strongly_connected_components_algorithm#The_algorithm_in_pseudocode
-static inline bool tarjan(arvm_space_t *space) {
-  bool success = true;
-
-  tarjan_vertex_t *vert = NULL;
-
-  arvm_func_stack_t stack;
-  if (!ARVM_ST_INIT(&stack, space->size)) {
-    success = false;
-    goto tarjan_cleanup;
-  }
-
-  if ((vert = calloc(space->size, sizeof(tarjan_vertex_t))) == NULL) {
-    success = false;
-    goto tarjan_cleanup;
-  }
-
-  size_t index = 1, scc_index = 1;
-  for (arvm_function_t func = space->tail_function; func != NULL;
-       func = func->previous) {
-    if (vert[func->id].index == 0)
-      tarjan_strongconnect(space, func, vert, &stack, &index, &scc_index);
-  }
-
-tarjan_cleanup:
-  free(vert);
-  ARVM_ST_FREE(&stack);
-
-  return success;
-}
-
-void arvm_prepare_space(arvm_space_t *space) {
-  { // Assign a unique ID to each function
-    size_t id = 0;
+  for (arvm_int_t t = space->time + 1; t <= time; t++) {
     for (arvm_function_t func = space->tail_function; func != NULL;
          func = func->previous) {
-      func->id = id++;
-      func->scc = 0;
+      func->state.prev = func->state.curr;
+      func->state.time = t;
+
+      arvm_subdomain_t *subdomain = func->domain;
+      while (t > subdomain->end)
+        subdomain++;
+
+      arvm_bdd_node_t bdd = subdomain->value;
+      while (!arvm_bdd_is_leaf(&space->bdd_mgr, bdd)) {
+        struct arvm_bdd_var var = space->vars[arvm_bdd_get_var(bdd)];
+        assert(var.callee->state.time == t || var.callee->state.time == t - 1);
+        bdd = (var.callee->state.time == t ? var.callee->state.prev
+                                           : var.callee->state.curr)
+                  ? arvm_bdd_get_high(bdd)
+                  : arvm_bdd_get_low(bdd);
+      }
+
+      func->state.curr = bdd == arvm_bdd_one(&func->space->bdd_mgr);
     }
   }
+  space->time = time;
+}
 
-  tarjan(space);
+void arvm_dispose_space(arvm_space_t *space) {
+  arvm_function_t func = space->tail_function;
+  space->tail_function = NULL;
+  while (func != NULL) {
+    arvm_function_t next = func->previous;
+    arvm_delete_function(func);
+    func = next;
+  }
+  space->size = 0;
+
+  arvm_bdd_free(&space->bdd_mgr);
+
+  free(space->var_map.entries);
+  space->var_map.entries = NULL;
+  space->var_map.length = 0;
+  space->var_map.capacity_bits = 0;
+
+  free(space->vars);
+  space->vars = NULL;
+
+  space->var_index = 0;
 }
 
 arvm_function_t arvm_new_function(arvm_space_t *space) {
-  arvm_function_t func = malloc(sizeof(struct arvm_function));
+  arvm_function_t func = calloc(1, sizeof(struct arvm_function));
   if (func == NULL)
     return NULL;
   func->space = space;
-  func->domain = NULL;
-  func->scc = 0;
-  func->id = 0;
-  func->next = NULL;
   func->previous = space->tail_function;
   if (space->tail_function != NULL)
     space->tail_function->next = func;
@@ -203,9 +135,8 @@ arvm_expr_t arvm_make_false(arvm_space_t *space) {
   return arvm_bdd_zero(&space->bdd_mgr);
 }
 
-arvm_expr_t arvm_make_call(arvm_space_t *space, arvm_function_t callee,
-                           arvm_int_t offset) {
-  struct arvm_bdd_var var = {callee, offset};
+arvm_expr_t arvm_make_call(arvm_space_t *space, arvm_function_t callee) {
+  struct arvm_bdd_var var = {callee};
 
   if (space->var_map.capacity_bits > 0) {
     size_t capacity = 1 << space->var_map.capacity_bits;
@@ -213,7 +144,7 @@ arvm_expr_t arvm_make_call(arvm_space_t *space, arvm_function_t callee,
     size_t i = var_hash(space, var);
     struct arvm_bdd_var_entry entry;
     while ((entry = space->var_map.entries[i++]).var.callee != NULL) {
-      if (entry.var.callee == callee && entry.var.offset == offset)
+      if (entry.var.callee == callee)
         return arvm_bdd_var(&space->bdd_mgr, entry.index);
 
       if (i >= capacity)
@@ -288,6 +219,8 @@ arvm_expr_t arvm_make_xor(arvm_space_t *space, arvm_expr_t a, arvm_expr_t b) {
 }
 
 void arvm_set_function_domain(arvm_function_t func, ...) {
+  free(func->domain);
+
   va_list args, args2;
   va_start(args, func);
   va_copy(args2, args);
@@ -302,16 +235,17 @@ void arvm_set_function_domain(arvm_function_t func, ...) {
   va_end(args);
 
   arvm_subdomain_t *domain = malloc(sizeof(arvm_subdomain_t) * subdomain_count);
-  if (domain == NULL)
+  if (domain == NULL) {
+    func->domain = NULL;
     return;
+  }
 
   size_t i = 0;
   do
-    domain[i++] = va_arg(args2, arvm_subdomain_t);
+    domain[i++] = subdomain = va_arg(args2, arvm_subdomain_t);
   while (subdomain.end != ARVM_INFINITY);
   va_end(args2);
 
-  free(func->domain);
   func->domain = domain;
 }
 
@@ -327,43 +261,4 @@ void arvm_delete_function(arvm_function_t func) {
   free(func);
 }
 
-bool arvm_call_function(arvm_function_t func, arvm_int_t t) {
-  if (t == 0)
-    return false;
-
-  arvm_subdomain_t *subdomain = func->domain;
-  while (t > subdomain->end)
-    subdomain++;
-
-  arvm_bdd_node_t bdd = subdomain->value;
-  while (!arvm_bdd_is_leaf(&func->space->bdd_mgr, bdd)) {
-    struct arvm_bdd_var var = func->space->vars[arvm_bdd_get_var(bdd)];
-    bdd = arvm_call_function(var.callee, sub(t, var.offset))
-              ? arvm_bdd_get_high(bdd)
-              : arvm_bdd_get_low(bdd);
-  }
-  return bdd == arvm_bdd_one(&func->space->bdd_mgr);
-}
-
-void arvm_dispose_space(arvm_space_t *space) {
-  arvm_function_t func = space->tail_function;
-  space->tail_function = NULL;
-  while (func != NULL) {
-    arvm_function_t next = func->previous;
-    arvm_delete_function(func);
-    func = next;
-  }
-  space->size = 0;
-
-  arvm_bdd_free(&space->bdd_mgr);
-
-  free(space->var_map.entries);
-  space->var_map.entries = NULL;
-  space->var_map.length = 0;
-  space->var_map.capacity_bits = 0;
-
-  free(space->vars);
-  space->vars = NULL;
-
-  space->var_index = 0;
-}
+bool arvm_get_function_value(arvm_function_t func) { return func->state.curr; }
