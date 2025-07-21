@@ -27,22 +27,21 @@ void test(void) {
                                            arvm_make_call(&space, h))},
          });
 
-  arvm_set_space_time(&space, 0);
   TEST_ASSERT_FALSE(arvm_get_function_value(g));
 
-  arvm_set_space_time(&space, 1);
+  arvm_update(&space, 1);
   TEST_ASSERT_FALSE(arvm_get_function_value(g));
 
-  arvm_set_space_time(&space, 2);
+  arvm_update(&space, 1);
   TEST_ASSERT_TRUE(arvm_get_function_value(g));
 
-  arvm_set_space_time(&space, 3);
+  arvm_update(&space, 1);
   TEST_ASSERT_FALSE(arvm_get_function_value(g));
 
-  arvm_set_space_time(&space, 4);
+  arvm_update(&space, 1);
   TEST_ASSERT_TRUE(arvm_get_function_value(g));
 
-  arvm_set_space_time(&space, 5);
+  arvm_update(&space, 1);
   TEST_ASSERT_FALSE(arvm_get_function_value(g));
 }
 

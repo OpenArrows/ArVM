@@ -46,26 +46,25 @@ struct arvm_bdd_var_entry {
   size_t index;
 };
 
-void arvm_set_space_time(arvm_space_t *space, arvm_int_t time) {
-  if (time < space->time)
-    return;
-
-  for (arvm_int_t t = space->time + 1; t <= time; t++) {
+void arvm_update(arvm_space_t *space, arvm_int_t dt) {
+  for (arvm_int_t i = 0; i < dt; i++) {
     for (arvm_function_t func = space->tail_function; func != NULL;
          func = func->previous) {
       func->state.prev = func->state.curr;
-      func->state.time = t;
+      func->state.time++;
 
       arvm_subdomain_t *subdomain = func->domain;
-      while (t > subdomain->end)
+      while (func->state.time > subdomain->end)
         subdomain++;
 
       arvm_bdd_node_t bdd = subdomain->value;
       while (!ARVM_BDD_IS_LEAF(&space->bdd_mgr, bdd)) {
         struct arvm_bdd_var var = space->vars[ARVM_BDD_VAR(bdd)];
-        assert(var.callee->state.time == t || var.callee->state.time == t - 1);
-        bdd = (var.callee->state.time == t ? var.callee->state.prev
-                                           : var.callee->state.curr)
+        assert(var.callee->state.time == func->state.time ||
+               var.callee->state.time == func->state.time - 1);
+        bdd = (var.callee->state.time == func->state.time
+                   ? var.callee->state.prev
+                   : var.callee->state.curr)
                   ? ARVM_BDD_HI(bdd)
                   : ARVM_BDD_LO(bdd);
       }
@@ -73,7 +72,6 @@ void arvm_set_space_time(arvm_space_t *space, arvm_int_t time) {
       func->state.curr = bdd == ARVM_BDD_TRUE;
     }
   }
-  space->time = time;
 }
 
 void arvm_dispose_space(arvm_space_t *space) {

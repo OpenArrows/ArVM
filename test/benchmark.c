@@ -34,12 +34,9 @@ int main(void) {
 
   clock_t total = 0;
 
-  arvm_int_t t = 0;
   for (int i = 0; i < NUM_ITERATIONS; i++) {
-    t += NUM_TICKS;
-
     clock_t start = clock();
-    arvm_set_space_time(&space, t);
+    arvm_update(&space, NUM_TICKS);
     total += clock() - start;
   }
   wprintf(L"total: %fs\n%fs per iteration (%llu ticks) / %fmus per tick\n",

@@ -20,8 +20,6 @@ typedef struct arvm_space {
   size_t size;
   arvm_function_t tail_function;
 
-  arvm_int_t time;
-
   arvm_bdd_manager_t bdd_mgr;
   struct {
     struct arvm_bdd_var_entry *entries;
@@ -34,7 +32,7 @@ typedef struct arvm_space {
 
 void arvm_dispose_space(arvm_space_t *space);
 
-void arvm_set_space_time(arvm_space_t *space, arvm_int_t time);
+void arvm_update(arvm_space_t *space, arvm_int_t dt);
 
 // Each subdomain (interval) of a function is defined by a truth table, with
 // operands being function values at (t - C), where C is a constant positive
