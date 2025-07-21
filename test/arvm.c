@@ -17,24 +17,33 @@ void test(void) {
 
   arvm_set_function_domain(
       g, (arvm_subdomain_t[]){
-             {ARVM_INFINITY, arvm_make_xor(&space, arvm_make_call(&space, f, 1),
-                                           arvm_make_call(&space, h, 1))},
+             {ARVM_INFINITY, arvm_make_xor(&space, arvm_make_call(&space, f),
+                                           arvm_make_call(&space, h))},
          });
 
   arvm_set_function_domain(
       f, (arvm_subdomain_t[]){
-             {ARVM_INFINITY, arvm_make_xor(&space, arvm_make_call(&space, g, 1),
-                                           arvm_make_call(&space, h, 1))},
+             {ARVM_INFINITY, arvm_make_xor(&space, arvm_make_call(&space, g),
+                                           arvm_make_call(&space, h))},
          });
 
-  arvm_prepare_space(&space);
+  arvm_set_space_time(&space, 0);
+  TEST_ASSERT_FALSE(arvm_get_function_value(g));
 
-  TEST_ASSERT_FALSE(arvm_call_function(g, 0));
-  TEST_ASSERT_FALSE(arvm_call_function(g, 1));
-  TEST_ASSERT_TRUE(arvm_call_function(g, 2));
-  TEST_ASSERT_FALSE(arvm_call_function(g, 3));
-  TEST_ASSERT_TRUE(arvm_call_function(g, 4));
-  TEST_ASSERT_FALSE(arvm_call_function(g, 5));
+  arvm_set_space_time(&space, 1);
+  TEST_ASSERT_FALSE(arvm_get_function_value(g));
+
+  arvm_set_space_time(&space, 2);
+  TEST_ASSERT_TRUE(arvm_get_function_value(g));
+
+  arvm_set_space_time(&space, 3);
+  TEST_ASSERT_FALSE(arvm_get_function_value(g));
+
+  arvm_set_space_time(&space, 4);
+  TEST_ASSERT_TRUE(arvm_get_function_value(g));
+
+  arvm_set_space_time(&space, 5);
+  TEST_ASSERT_FALSE(arvm_get_function_value(g));
 }
 
 int main(void) {
