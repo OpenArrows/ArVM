@@ -12,7 +12,7 @@ void test(void) {
                   h = arvm_new_function(&space);
 
   arvm_set_function_domain(h, (arvm_subdomain_t[]){
-                                  {ARVM_INFINITY, arvm_make_true(&space)},
+                                  {ARVM_INFINITY, arvm_true()},
                               });
 
   arvm_set_function_domain(

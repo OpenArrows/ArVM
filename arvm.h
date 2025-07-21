@@ -46,9 +46,9 @@ struct arvm_subdomain {
 
 arvm_function_t arvm_new_function(arvm_space_t *space);
 
-arvm_expr_t arvm_make_true(arvm_space_t *space);
+arvm_expr_t arvm_true();
 
-arvm_expr_t arvm_make_false(arvm_space_t *space);
+arvm_expr_t arvm_false();
 
 arvm_expr_t arvm_make_call(arvm_space_t *space, arvm_function_t callee);
 

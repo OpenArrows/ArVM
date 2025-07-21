@@ -61,16 +61,16 @@ void arvm_set_space_time(arvm_space_t *space, arvm_int_t time) {
         subdomain++;
 
       arvm_bdd_node_t bdd = subdomain->value;
-      while (!arvm_bdd_is_leaf(&space->bdd_mgr, bdd)) {
-        struct arvm_bdd_var var = space->vars[arvm_bdd_get_var(bdd)];
+      while (!ARVM_BDD_IS_LEAF(&space->bdd_mgr, bdd)) {
+        struct arvm_bdd_var var = space->vars[ARVM_BDD_VAR(bdd)];
         assert(var.callee->state.time == t || var.callee->state.time == t - 1);
         bdd = (var.callee->state.time == t ? var.callee->state.prev
                                            : var.callee->state.curr)
-                  ? arvm_bdd_get_high(bdd)
-                  : arvm_bdd_get_low(bdd);
+                  ? ARVM_BDD_HI(bdd)
+                  : ARVM_BDD_LO(bdd);
       }
 
-      func->state.curr = bdd == arvm_bdd_one(&func->space->bdd_mgr);
+      func->state.curr = bdd == ARVM_BDD_TRUE;
     }
   }
   space->time = time;
@@ -127,13 +127,9 @@ static inline void put_var_entry(arvm_space_t *space,
   space->var_map.entries[i] = entry;
 }
 
-arvm_expr_t arvm_make_true(arvm_space_t *space) {
-  return arvm_bdd_one(&space->bdd_mgr);
-}
+arvm_expr_t arvm_true() { return ARVM_BDD_TRUE; }
 
-arvm_expr_t arvm_make_false(arvm_space_t *space) {
-  return arvm_bdd_zero(&space->bdd_mgr);
-}
+arvm_expr_t arvm_false() { return ARVM_BDD_FALSE; }
 
 arvm_expr_t arvm_make_call(arvm_space_t *space, arvm_function_t callee) {
   struct arvm_bdd_var var = {callee};
@@ -199,7 +195,7 @@ arvm_expr_t arvm_make_call(arvm_space_t *space, arvm_function_t callee) {
   return arvm_bdd_var(&space->bdd_mgr, space->var_index++);
 }
 
-arvm_expr_t arvm_not(arvm_expr_t a) { return arvm_bdd_not(a); }
+arvm_expr_t arvm_not(arvm_expr_t a) { return ARVM_BDD_NOT(a); }
 
 arvm_expr_t arvm_make_ite(arvm_space_t *space, arvm_expr_t a, arvm_expr_t b,
                           arvm_expr_t c) {
@@ -207,7 +203,7 @@ arvm_expr_t arvm_make_ite(arvm_space_t *space, arvm_expr_t a, arvm_expr_t b,
 }
 
 arvm_expr_t arvm_make_and(arvm_space_t *space, arvm_expr_t a, arvm_expr_t b) {
-  return arvm_make_ite(space, a, b, arvm_make_false(space));
+  return arvm_make_ite(space, a, b, arvm_false());
 }
 
 arvm_expr_t arvm_make_or(arvm_space_t *space, arvm_expr_t a, arvm_expr_t b) {
